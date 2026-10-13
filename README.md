@@ -81,7 +81,9 @@ and header/tail reads through WORKERFS at offsets above 3 GiB. It also checks
 mobile overflow and disabled Play state. Widget sizing tests use mouse and touch
 corner drags and check rendered dimensions, scrolled-content grip accessibility,
 reload persistence, column buttons and drawer selection, width/spacing sliders,
-below-screen placement, collapse/reset, and overlap at desktop/tablet/mobile widths. Test files are generated data; no
+below-screen placement, collapse/reset, cross-tab storage delivery, and overlap at
+desktop/tablet/mobile widths. Screenshots at each sizing step plus hashes and
+measured widget bounds are retained in `artifacts/widget-framebuffers/`. Test files are generated data; no
 BIOS or games are shipped. Screenshots and report are written to `artifacts/`.
 These tests do not establish game compatibility or gameplay performance.
 

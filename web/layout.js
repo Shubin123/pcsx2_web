@@ -396,6 +396,17 @@
     });
     $('btn-layout-reset')?.addEventListener('click', reset);
 
+    // A new document can receive a late storage update from the outgoing
+    // document during an isolation reload. Keep rendered layout synchronized
+    // with saved dimensions, including changes made in another tab.
+    window.addEventListener('storage', event => {
+        if (event.storageArea === localStorage && (event.key === STORAGE_KEY || event.key === null)) {
+            state = load();
+            apply();
+        }
+    });
+    window.addEventListener('pageshow', () => { state = load(); apply(); });
+
     apply();
 
     window.PCSX2Layout = {
