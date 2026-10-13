@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151a26">
+  <title>PCSX2 Web</title>
+  <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+<header><a class="brand" href="./"><img src="./app-icon.svg" alt="" width="40" height="40"><span>PCSX2 <b>Web</b></span></a><span class="badge">Experimental port</span></header>
+<main>
+  <section class="display panel" aria-label="Console display">
+    <div class="display-head"><span>PLAYSTATION 2</span><button id="fullscreen">Fullscreen</button></div>
+    <div id="screen"><canvas id="canvas" width="640" height="448" aria-label="Emulator output"></canvas><div id="empty"><img src="./app-icon.svg" alt="" width="72" height="72"><h1>A browser home for PCSX2</h1><p id="availability">Checking the WebAssembly backend…</p></div></div>
+    <div class="toolbar"><button id="play" disabled>Play</button><button id="pause" disabled>Pause</button><button id="stop" disabled>Stop</button><span id="fps">No game running</span></div>
+    <p id="status" role="status" aria-live="polite">Preparing browser…</p>
+  </section>
+  <aside>
+    <section class="panel"><h2>Game library</h2><p>Choose an ISO or ELF. Keep a local copy in browser storage for your next visit.</p><label class="file-button">Choose game<input id="disc" type="file" accept=".iso,.bin,.elf" hidden></label><label class="check"><input id="cache" type="checkbox" checked> Save in browser storage</label><div id="drop" tabindex="0">Drop a game here</div><progress id="progress" hidden max="1" value="0" aria-label="Import progress"></progress><button id="cancel" hidden>Cancel import</button><p id="selected">No game selected</p><ul id="library"></ul></section>
+    <section class="panel"><h2>Console BIOS</h2><p>Use a BIOS dumped from your own PS2.</p><label class="file-button">Choose BIOS<input id="bios" type="file" accept=".bin,.rom" hidden></label><p id="bios-name">No BIOS selected</p></section>
+    <section class="panel"><h2>Controller</h2><p>Arrow keys · D-pad<br>Z / X / A / S · Cross / Circle / Square / Triangle<br>Enter / Shift · Start / Select<br>Q / W / E / R · L1 / R1 / L2 / R2</p><p id="gamepad">Connect a gamepad and press a button.</p></section>
+    <section class="panel"><h2>Backend</h2><dl><dt>Browser isolation</dt><dd id="isolation">Checking</dd><dt>WebAssembly SIMD</dt><dd id="simd">Checking</dd><dt>Core</dt><dd id="core">Checking</dd></dl><button id="validate" disabled>Validate GS kernels</button><p id="validation" role="status"></p></section>
+  </aside>
+</main>
+<footer>PCSX2 Dev Team · GPL-3.0+ · Architecture modeled after <a href="https://github.com/Shubin123/azahar_web">Azahar Web</a><br><a href="https://github.com/Shubin123/pcsx2_emscripten">Backend source</a> · <a href="https://github.com/Shubin123/pcsx2_web">Frontend source</a></footer>
+</body>
+</html>

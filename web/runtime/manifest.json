@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "abi": 1,
+  "kind": "portability-components",
+  "emulation": false,
+  "factory": "createPCSX2Port",
+  "entry": "pcsx2-port.js",
+  "upstream": {
+    "repository": "https://github.com/PCSX2/pcsx2",
+    "revision": "0f71e668b8adc950db7de1b1b15c2f5080c102e9"
+  },
+  "backendRevision": "f4f8205bd25a3f6018a7720a1193cff9118d1b45",
+  "toolchain": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.9 (4e4223852a0835923411059a3929907d7df1232e)",
+  "features": [
+    "wasm-simd128",
+    "shared-memory",
+    "lto",
+    "workerfs",
+    "gs-block32",
+    "gs-block16",
+    "gs-block8",
+    "gs-block4"
+  ],
+  "files": {
+    "pcsx2-port.js": {
+      "bytes": 69163,
+      "sha256": "1413ba105c80ddb2da9b19407bf3728b9b3fefc629c18134107c5c550f017810"
+    },
+    "pcsx2-port.wasm": {
+      "bytes": 33038,
+      "sha256": "6e1c4f0e0d6f8cb8825de0500ad78586854874d2bfc2e026025a814050bf3aec"
+    }
+  }
+}

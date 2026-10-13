@@ -1,0 +1,14 @@
+{
+  "name": "pcsx2_web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser frontend and validation harness for the PCSX2 WebAssembly port",
+  "scripts": {
+    "start": "node scripts/server.mjs",
+    "sync": "node scripts/sync-runtime.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node tests/browser.mjs"
+  },
+  "devDependencies": {"puppeteer-core": "^23.11.1"}
+}
