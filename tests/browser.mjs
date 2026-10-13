@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import puppeteer from 'puppeteer-core';
+import { testWidgetSizing } from './layout.mjs';
 const port = process.env.TEST_PORT || '8093';
 const server = spawn(process.execPath, ['scripts/server.mjs'], { env: { ...process.env, PORT: port }, stdio: ['ignore', 'pipe', 'inherit'] });
 let browser;
@@ -41,6 +42,7 @@ try {
   assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), true);
   await page.click('#reset-settings');
   assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), false);
+  await testWidgetSizing(page);
   await page.click('#validate');
   await page.waitForFunction(() => document.getElementById('validation').textContent.startsWith('Passed:'));
   // Exercise the actual UI import path and the storage replay path after reload.
@@ -110,7 +112,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: 'artifacts/frontend-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
-  const report = { browser: await browser.version(), upstreamGS: 'passed', uiImport: 'passed', cachedReplay: 'passed', largeDiscBytes: result.mounted.size, largeDiscHeaderAndTail: 'passed', cancellationCleanup: 'passed', archiveDownloadCacheMount: 'passed (generated fixture)', layoutPersistence: 'passed', preferences: 'passed', mobileLayout: 'passed', gameExecution: 'not implemented' };
+  const report = { browser: await browser.version(), upstreamGS: 'passed', uiImport: 'passed', cachedReplay: 'passed', largeDiscBytes: result.mounted.size, largeDiscHeaderAndTail: 'passed', cancellationCleanup: 'passed', archiveDownloadCacheMount: 'passed (generated fixture)', widgetSizing: 'passed (pointer drag, scrolling, reload, sliders, columns, reset, responsive geometry)', layoutPersistence: 'passed', preferences: 'passed', mobileLayout: 'passed', gameExecution: 'not implemented' };
   await writeFile('artifacts/browser-report.json', JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report, null, 2));
 } finally { await browser?.close(); server.kill(); }

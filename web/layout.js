@@ -192,6 +192,13 @@
         );
         h2.append(tools);
 
+        // Scroll the contents, not the entire card: the title and resize grip
+        // must stay reachable even when a widget is shorter than its contents.
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        content.append(...[...card.children].filter(child => child !== h2));
+        card.append(content);
+
         const handle = document.createElement('div');
         handle.className = 'widget-resize';
         handle.title = 'Drag to resize, double-click to reset';
@@ -203,7 +210,9 @@
     function attachResize(id, card, handle) {
         let start = null;
         handle.addEventListener('pointerdown', e => {
+            if (e.button !== 0) return;
             e.preventDefault();
+            e.stopPropagation();
             const rect = card.getBoundingClientRect();
             start = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height, ...metrics() };
             handle.setPointerCapture(e.pointerId);
@@ -229,6 +238,7 @@
         };
         handle.addEventListener('pointerup', end);
         handle.addEventListener('pointercancel', end);
+        handle.addEventListener('lostpointercapture', end);
         handle.addEventListener('dblclick', () => {
             update(id, { span: Number.parseInt(card.dataset.defaultSpan || '1', 10), height: null });
         });

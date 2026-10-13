@@ -85,7 +85,11 @@
 
         /* ── Widgets ─────────────────────────────────────────────── */
         .controls-panel > .card { position: relative; display: flex; flex-direction: column; }
-        .controls-panel > .card.has-fixed-height { overflow: auto; }
+        .controls-panel > .card.has-fixed-height { overflow: hidden; }
+        .widget-content { min-width: 0; }
+        .has-fixed-height > .widget-content { flex: 1 1 auto; min-height: 0; overflow: auto; }
+        .widget-resize { z-index: 1; }
+        .has-fixed-height { padding-bottom: 20px; }
         .controls-panel > .card.is-collapsed { height: auto !important; overflow: hidden; }
         .controls-panel > .card.is-collapsed > :not(h2) { display: none !important; }
         .controls-panel > .card.is-collapsed > h2 { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }
