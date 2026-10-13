@@ -8,7 +8,8 @@
     "start": "node scripts/server.mjs",
     "sync": "node scripts/sync-runtime.mjs",
     "check": "node scripts/check.mjs",
-    "test": "node tests/browser.mjs"
+    "test": "node tests/browser.mjs",
+    "test:game-import": "node tests/game-import.mjs"
   },
   "devDependencies": {"puppeteer-core": "^23.11.1"}
 }
