@@ -1,7 +1,5 @@
-name: Validate and deploy browser frontend
+name: Validate browser frontend
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -25,26 +23,3 @@ jobs:
         with:
           name: browser-validation
           path: artifacts/
-  deploy:
-    needs: browser
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    concurrency:
-      group: github-pages
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: web
-      - name: Deploy GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

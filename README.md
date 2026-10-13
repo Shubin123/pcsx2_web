@@ -30,6 +30,22 @@ Open http://127.0.0.1:8080. The local server supplies COOP/COEP headers on all
 responses. GitHub Pages uses the included same-origin service worker; the first
 visit may reload once to enable cross-origin isolation.
 
+## Deployment and build ownership
+
+[GitHub Pages](https://shubin123.github.io/pcsx2_web/) publishes the checked-in
+`web/` directory with a small upload/deploy workflow. It runs only when static
+files or its workflow change, or when manually dispatched. It does not install
+npm dependencies, run Chrome, or compile Wasm. Browser validation runs on pull
+requests or manual dispatch independently of Pages.
+
+Wasm compilation and component tests run in the private `pcsx2_emscripten`
+repository on backend pushes, pull requests, or manual dispatch. Its workflow
+uploads `pcsx2-web-components` with JavaScript, Wasm, and the checksum manifest.
+Download that artifact as an authorized backend user, then run
+`npm run sync -- /path/to/extracted/artifact` here and commit the updated
+`web/runtime/` files. That static-file commit triggers Pages. The frontend
+does not need a token to the private backend or a compiler in its deployment.
+
 `npm run sync -- /path/to/backend/build-web/web` verifies SHA-256 hashes before
 copying a complete backend artifact set into `web/runtime/`. Runtime files and
 manifest are checked in together, so published frontend source exactly matches
