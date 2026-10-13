@@ -17,6 +17,10 @@ export async function listGames() {
   return games.sort((a, b) => b.imported - a.imported);
 }
 export async function cacheFile(file, kind, onProgress = () => {}, signal) {
+  return cacheStream(file.stream(), file.name, file.size, kind, onProgress, signal);
+}
+export async function cacheStream(stream, name, size, kind, onProgress = () => {}, signal) {
+  const file = { name, size };
   if (!navigator.storage?.getDirectory) throw new Error('Browser storage is unavailable. Uncheck Save in browser storage to load directly.');
   if (!['disc', 'bios'].includes(kind)) throw new Error('Invalid library entry kind');
   const { quota, usage } = await navigator.storage.estimate();
@@ -27,7 +31,7 @@ export async function cacheFile(file, kind, onProgress = () => {}, signal) {
   let reader;
   try {
     writable = await (await dir.getFileHandle(`${id}.blob`, { create: true })).createWritable();
-    reader = file.stream().getReader();
+    reader = stream.getReader();
     let written = 0;
     for (;;) {
       signal?.throwIfAborted();
@@ -38,6 +42,7 @@ export async function cacheFile(file, kind, onProgress = () => {}, signal) {
       onProgress(written / file.size);
     }
     signal?.throwIfAborted();
+    if (written !== size) throw new Error(`Incomplete download: expected ${size} bytes, received ${written}.`);
     await writable.close();
     writable = null;
     const meta = { id, kind, name: file.name, size: file.size, imported: Date.now() };

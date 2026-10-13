@@ -2,12 +2,18 @@
 import { Backend } from './backend.js';
 import { cacheFile, getCachedFile, listGames, removeCachedFile } from './storage.js';
 import { startInput } from './input.js';
+import { startArchive } from './archive.js';
 const $ = id => document.getElementById(id);
 let backend;
 let importController;
 let importing = false;
+let downloading = false;
 let ready = false;
-const status = message => { $('status').textContent = message; };
+const status = message => {
+  $('status').textContent = message;
+  const log = $('log');
+  log.textContent = (log.textContent + `${new Date().toLocaleTimeString()} ${message}\n`).split('\n').slice(-150).join('\n');
+};
 const report = error => status(error.message || String(error));
 async function refreshLibrary() {
   const games = await listGames();
@@ -16,12 +22,12 @@ async function refreshLibrary() {
     const row = document.createElement('li');
     const load = document.createElement('button');
     load.textContent = `${meta.name} · ${(meta.size / 1048576).toFixed(1)} MiB`;
-    load.disabled = !ready || importing;
+    load.disabled = !ready || importing || downloading;
     load.onclick = () => loadFile(meta).catch(report);
     const remove = document.createElement('button');
     remove.textContent = 'Remove';
     remove.setAttribute('aria-label', `Remove ${meta.name} from browser storage`);
-    remove.disabled = importing;
+    remove.disabled = importing || downloading;
     remove.onclick = async () => { try { await removeCachedFile(meta); await refreshLibrary(); } catch (error) { report(error); } };
     row.append(load, remove); $('library').append(row);
   }
@@ -37,7 +43,7 @@ async function mountFile(file, kind) {
   return result;
 }
 async function importFile(file, kind) {
-  if (!file || !ready || importing) return;
+  if (!file || !ready || importing || downloading) return;
   if (!file.size) throw new Error('The selected file is empty.');
   const extension = file.name.split('.').pop().toLowerCase();
   if (kind === 'disc' && !['iso', 'bin', 'elf'].includes(extension)) throw new Error('Choose an ISO, BIN, or ELF. Compressed archives are not supported yet.');
@@ -112,6 +118,7 @@ async function initialize() {
   $('core').textContent = `PCSX2 ${manifest.upstream.revision.slice(0,8)} · GS components`;
   $('availability').textContent = 'The graphics components are ready. PS2 game execution is still being ported.';
   status('You can cache and mount files, and validate the upstream GS kernels. Play is unavailable until the emulator core is connected.');
+  startArchive(async meta => { await loadFile(meta); await refreshLibrary(); }, () => importing, async active => { downloading = active; await refreshLibrary(); });
   await refreshLibrary();
   const bios = (await listGames()).find(entry => entry.kind === 'bios');
   if (bios) await loadFile(bios);

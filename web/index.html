@@ -8,23 +8,58 @@
   <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
   <script type="module" src="./app.js"></script>
+  <script type="module" src="./layout.js"></script>
+  <script type="module" src="./settings.js"></script>
 </head>
 <body>
-<header><a class="brand" href="./"><img src="./app-icon.svg" alt="" width="40" height="40"><span>PCSX2 <b>Web</b></span></a><span class="badge">Experimental port</span></header>
-<main>
-  <section class="display panel" aria-label="Console display">
+<header><button type="button" class="menu-toggle" id="btn-layout-menu" aria-label="Layout menu" aria-expanded="false" aria-controls="layout-menu"><span></span><span></span><span></span></button><a class="brand" href="./"><img src="./app-icon.svg" alt="" width="40" height="40"><span>PCSX2 <b>Web</b></span></a><span class="badge">Experimental port</span></header>
+    <aside class="layout-menu" id="layout-menu" hidden aria-label="Layout menu">
+        <div class="layout-menu-header">
+            <h2>☰ Layout</h2>
+            <button type="button" class="btn btn-secondary layout-menu-close" id="btn-layout-menu-close" aria-label="Close layout menu">✕</button>
+        </div>
+        <div class="speed-control">
+            <label for="layout-widget-width">
+                <span>Widget width</span><output id="layout-widget-width-value">260px</output>
+            </label>
+            <input id="layout-widget-width" type="range" min="200" max="480" step="10" value="260"
+                   aria-label="Minimum widget width">
+        </div>
+        <div class="speed-control">
+            <label for="layout-gap">
+                <span>Spacing</span><output id="layout-gap-value">12px</output>
+            </label>
+            <input id="layout-gap" type="range" min="4" max="28" step="2" value="12" aria-label="Spacing between widgets">
+        </div>
+        <label class="mode-help audio-toggle">
+            <input type="checkbox" id="layout-beside-screen" checked>
+            Place widgets beside the screen when there is room
+        </label>
+        <h3 class="layout-menu-subhead">Widgets</h3>
+        <ul class="layout-widget-list" id="layout-widget-list"></ul>
+        <div class="mode-help">Drag a widget by its title to move it, drag its corner to resize it, or use the buttons here. Double-click a corner to reset that widget's size.</div>
+        <button type="button" class="btn btn-primary" id="btn-layout-reset" style="margin-top:10px;">↺ Reset to default layout</button>
+    </aside>
+    <div class="layout-menu-backdrop" id="layout-menu-backdrop" hidden></div>
+
+<main class="main-layout">
+  <section class="display panel canvas-panel" aria-label="Console display">
     <div class="display-head"><span>PLAYSTATION 2</span><button id="fullscreen">Fullscreen</button></div>
     <div id="screen"><canvas id="canvas" width="640" height="448" aria-label="Emulator output"></canvas><div id="empty"><img src="./app-icon.svg" alt="" width="72" height="72"><h1>A browser home for PCSX2</h1><p id="availability">Checking the WebAssembly backend…</p></div></div>
     <div class="toolbar"><button id="play" disabled>Play</button><button id="pause" disabled>Pause</button><button id="stop" disabled>Stop</button><span id="fps">No game running</span></div>
     <p id="status" role="status" aria-live="polite">Preparing browser…</p>
   </section>
-  <aside>
-    <section class="panel"><h2>Game library</h2><p>Choose an ISO or ELF. Keep a local copy in browser storage for your next visit.</p><label class="file-button">Choose game<input id="disc" type="file" accept=".iso,.bin,.elf" hidden></label><label class="check"><input id="cache" type="checkbox" checked> Save in browser storage</label><div id="drop" tabindex="0">Drop a game here</div><progress id="progress" hidden max="1" value="0" aria-label="Import progress"></progress><button id="cancel" hidden>Cancel import</button><p id="selected">No game selected</p><ul id="library"></ul></section>
-    <section class="panel"><h2>Console BIOS</h2><p>Use a BIOS dumped from your own PS2.</p><label class="file-button">Choose BIOS<input id="bios" type="file" accept=".bin,.rom" hidden></label><p id="bios-name">No BIOS selected</p></section>
-    <section class="panel"><h2>Controller</h2><p>Arrow keys · D-pad<br>Z / X / A / S · Cross / Circle / Square / Triangle<br>Enter / Shift · Start / Select<br>Q / W / E / R · L1 / R1 / L2 / R2</p><p id="gamepad">Connect a gamepad and press a button.</p></section>
-    <section class="panel"><h2>Backend</h2><dl><dt>Browser isolation</dt><dd id="isolation">Checking</dd><dt>WebAssembly SIMD</dt><dd id="simd">Checking</dd><dt>Core</dt><dd id="core">Checking</dd></dl><button id="validate" disabled>Validate GS kernels</button><p id="validation" role="status"></p></section>
+  <aside class="controls-panel" id="widget-grid">
+    <section class="panel card" data-widget="rom"><h2>Game library</h2><p>Choose an ISO or ELF. Keep a local copy in browser storage for your next visit.</p><label class="file-button">Choose game<input id="disc" type="file" accept=".iso,.bin,.elf" hidden></label><label class="check"><input id="cache" type="checkbox" checked> Save in browser storage</label><div id="drop" tabindex="0">Drop a game here</div><progress id="progress" hidden max="1" value="0" aria-label="Import progress"></progress><button id="cancel" hidden>Cancel import</button><p id="selected">No game selected</p><ul id="library"></ul></section>
+    <section class="panel card" data-widget="bios"><h2>Console BIOS</h2><p>Use a BIOS dumped from your own PS2.</p><label class="file-button">Choose BIOS<input id="bios" type="file" accept=".bin,.rom" hidden></label><p id="bios-name">No BIOS selected</p></section>
+    <section class="panel card" data-widget="controls"><h2>Controller</h2><p>Arrow keys · D-pad<br>Z / X / A / S · Cross / Circle / Square / Triangle<br>Enter / Shift · Start / Select<br>Q / W / E / R · L1 / R1 / L2 / R2</p><p id="gamepad">Connect a gamepad and press a button.</p></section>
+    <section class="panel card" data-widget="display"><h2>Display settings</h2><label>Screen shape<select id="aspect"><option value="native">Native</option><option value="4:3">4:3</option><option value="16:9">16:9</option></select></label><label>Image filtering<select id="filter"><option value="pixelated">Sharp pixels</option><option value="auto">Smooth</option></select></label><p>Alt+Enter toggles fullscreen.</p><button id="screenshot">Save screenshot</button></section>
+    <section class="panel card" data-widget="storage"><h2>Browser storage</h2><p id="storage-info">Checking storage…</p><button id="persist">Keep storage persistent</button><button id="reset-settings">Reset preferences</button></section>
+    <section class="panel card" data-widget="log"><h2>Log</h2><pre id="log" aria-label="Session log"></pre><button id="clear-log">Clear log</button></section>
+    <section class="panel card" data-widget="backend"><h2>Backend</h2><dl><dt>Browser isolation</dt><dd id="isolation">Checking</dd><dt>WebAssembly SIMD</dt><dd id="simd">Checking</dd><dt>Core</dt><dd id="core">Checking</dd></dl><button id="validate" disabled>Validate GS kernels</button><p id="validation" role="status"></p></section>
   </aside>
 </main>
+<section class="panel card archive-section" aria-label="Game archive"><h2>Shared game library</h2><label>Database<select id="archive-source"><option value="playstation-2-games-iso">PlayStation 2 games ISO</option></select></label><p><a href="https://archive.org/download/playstation-2-games-iso" target="_blank" rel="noopener">Internet Archive · PlayStation 2 games ISO</a></p><div class="archive-toolbar"><input id="archive-search" type="search" placeholder="Search game titles" aria-label="Search game titles"><select id="archive-region" aria-label="Region"><option value="all">All regions</option><option>USA</option><option>Europe</option><option>Japan</option><option value="other">Other</option></select><select id="archive-sort" aria-label="Sort games"><option value="title">Title A–Z</option><option value="size">Size smallest first</option></select><button id="archive-refresh">Refresh catalog</button></div><p id="archive-status" role="status">Loading archive catalog…</p><progress id="archive-progress" hidden max="1" value="0" aria-label="Download progress"></progress><button id="archive-cancel" hidden>Cancel download</button><ul id="archive-list"></ul><div class="archive-toolbar"><button id="archive-prev">Previous</button><span id="archive-page"></span><button id="archive-next">Next</button></div></section>
 <footer>PCSX2 Dev Team · GPL-3.0+ · Architecture modeled after <a href="https://github.com/Shubin123/azahar_web">Azahar Web</a><br><a href="https://github.com/Shubin123/pcsx2_emscripten">Backend source</a> · <a href="https://github.com/Shubin123/pcsx2_web">Frontend source</a></footer>
 </body>
 </html>

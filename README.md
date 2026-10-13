@@ -12,7 +12,27 @@ BIOS selection, import cancellation and quota checks, keyboard/gamepad packet
 capture, fullscreen, and responsive layout. Input packets are not yet consumed
 by a PS2 core. BIN mounting does not establish cue-sheet/CD image compatibility;
 BIOS size checks do not validate whether a ROM is a correct PS2 BIOS.
-Compressed archives and game catalog downloads are not implemented.
+The Internet Archive catalog at https://archive.org/download/playstation-2-games-iso
+supports title search, region filters, sorting, pagination, refresh, and streamed
+ISO/BIN/ELF downloads into OPFS with cancellation, quota checks, byte-length
+verification and cached mounting. The catalog is fetched live; archive availability
+and browser CORS permissions can affect downloads. Each title links to a direct
+download for local import when browser fetch is blocked. A live browser check
+loaded 378 catalog images; a live ISO range request failed to fetch, while the
+fixture download/cache/mount test passed. Full live game downloads are unverified. Compressed archives are not
+supported by this catalog importer.
+
+The Azahar-style hamburger drawer supports persistent widget ordering, resizing,
+collapse/hide, column spans, width, spacing, placement beside/below the screen,
+and layout reset. Display filtering/shape and import caching preferences persist;
+fullscreen (Alt+Enter), PNG screenshots, storage persistence requests and a session
+log are available. The screenshot captures the current canvas, including an empty
+canvas before a game-rendering backend exists.
+
+Azahar gameplay features (renderer selection, internal resolution, fast-forward,
+audio, frame stepping, save states and network play) require emulator APIs absent
+from this component backend. They are not implemented. The PS2 has one display;
+Azahar's dual-screen sizing and 3DS wireless controls do not apply.
 
 ## Run
 
@@ -69,6 +89,9 @@ These tests do not establish game compatibility or gameplay performance.
   the same-origin isolation service worker follow Shubin123's
   [azahar_emscripten](https://github.com/Shubin123/azahar_emscripten) and
   [azahar_web](https://github.com/Shubin123/azahar_web).
+- `web/layout.js` and widget/drawer CSS are adapted from Shubin123's
+  `azahar_web/web/azahar_layout.js` and `web/index.html` at commit
+  `2064d01bb28c4acf0b8821b61a521f80f22f7c40` (GPL-3.0+).
 - `web/coi-serviceworker.js` is adapted from `azahar_web` commit
   `2064d01bb28c4acf0b8821b61a521f80f22f7c40`.
 - New frontend code and the distributed PCSX2 components use GPL-3.0+;

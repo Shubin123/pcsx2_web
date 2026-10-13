@@ -13,10 +13,34 @@ try {
   const page = await browser.newPage();
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewport({ width: 1440, height: 1000 });
+  await page.setRequestInterception(true);
+  page.on('request', request => {
+    if (request.url() === 'https://archive.org/metadata/playstation-2-games-iso') return request.respond({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' }, body: JSON.stringify({ files: [ { name: 'Archive fixture (USA).iso', size: '1048576' }, { name: 'Other fixture (Japan).iso', size: '2048' }, { name: 'metadata.xml', size: '100' } ] }) });
+    if (request.url().startsWith('https://archive.org/download/playstation-2-games-iso/')) return request.respond({ status: 200, headers: { 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' }, body: Buffer.alloc(1048576, 0x42) });
+    request.continue();
+  });
   await page.goto(`http://127.0.0.1:${port}`, { waitUntil: 'networkidle0' });
   await page.waitForFunction(() => !document.getElementById('validate').disabled, { timeout: 30000 });
   assert.equal(await page.evaluate(() => crossOriginIsolated), true);
   assert.equal(await page.$eval('#play', element => element.disabled), true);
+  await page.waitForSelector('#archive-list li button');
+  assert.equal(await page.$$eval('#archive-list li', rows => rows.length), 2);
+  await page.click('#archive-list li button');
+  await page.waitForFunction(() => document.getElementById('archive-status').textContent.includes('cached and mounted'));
+  assert.ok(await page.$eval('#library', e => e.textContent.includes('Archive fixture')));
+  await page.click('#library li button:last-child');
+  await page.click('#btn-layout-menu');
+  await page.waitForFunction(() => !document.getElementById('layout-menu').hidden);
+  await page.click('[aria-label="Show Controller"]');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), true);
+  await page.select('#filter', 'auto');
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForFunction(() => !document.getElementById('validate').disabled);
+  assert.equal(await page.$eval('#filter', e => e.value), 'auto');
+  assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), true);
+  await page.click('#reset-settings');
+  assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), false);
   await page.click('#validate');
   await page.waitForFunction(() => document.getElementById('validation').textContent.startsWith('Passed:'));
   // Exercise the actual UI import path and the storage replay path after reload.
@@ -82,9 +106,11 @@ try {
   await page.screenshot({ path: 'artifacts/frontend-desktop.png', fullPage: true });
   await page.setViewport({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.click('#btn-layout-menu');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: 'artifacts/frontend-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
-  const report = { browser: await browser.version(), upstreamGS: 'passed', uiImport: 'passed', cachedReplay: 'passed', largeDiscBytes: result.mounted.size, largeDiscHeaderAndTail: 'passed', cancellationCleanup: 'passed', mobileLayout: 'passed', gameExecution: 'not implemented' };
+  const report = { browser: await browser.version(), upstreamGS: 'passed', uiImport: 'passed', cachedReplay: 'passed', largeDiscBytes: result.mounted.size, largeDiscHeaderAndTail: 'passed', cancellationCleanup: 'passed', archiveDownloadCacheMount: 'passed (generated fixture)', layoutPersistence: 'passed', preferences: 'passed', mobileLayout: 'passed', gameExecution: 'not implemented' };
   await writeFile('artifacts/browser-report.json', JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report, null, 2));
 } finally { await browser?.close(); server.kill(); }
