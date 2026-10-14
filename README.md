@@ -132,9 +132,9 @@ On the local Apple M1 / Chrome 155 intro benchmark, first picture takes 13.1 s (
 26.2 s) and the 18–20 guest-second window runs at 0.32x guest speed / 16.0 vsync Hz (was
 0.29x / 14.4 Hz). Full PAL speed is not reached.
 
-3D gameplay (Mission 1, guest 85–95 s, Node on the same M1) runs at 0.53x guest speed and
-13.1 presented FPS with "Multithreaded VU1" (Backend widget, on by default), versus 0.30x /
-7.6 FPS without it. Turn it off if a game misbehaves; it applies at the next boot.
+3D gameplay (Mission 1, guest 85–95 s, Node on the same M1) runs at 0.63x guest speed and
+15.8 presented FPS with "Multithreaded VU1" (Backend widget, on by default) and the VU1
+decode cache, versus 0.30x / 7.6 FPS before this work. Turn it off if a game misbehaves; it applies at the next boot.
 
 Controller tests, `npm run test:controls` (fastest first; stops at the first failing layer;
 layers without local media report SKIP, never PASS):
