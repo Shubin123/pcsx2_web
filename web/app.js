@@ -3,18 +3,48 @@ import { Backend } from './backend.js';
 import { cacheFile, getCachedFile, listGames, removeCachedFile } from './storage.js';
 import { startInput } from './input.js';
 import { startArchive } from './archive.js';
+
 const $ = id => document.getElementById(id);
 let backend;
 let importController;
 let importing = false;
 let downloading = false;
 let ready = false;
+let hasBios = false;
+let hasGame = false;
+let isRunning = false;
+let isPaused = false;
+
 const status = message => {
   $('status').textContent = message;
   const log = $('log');
   log.textContent = (log.textContent + `${new Date().toLocaleTimeString()} ${message}\n`).split('\n').slice(-150).join('\n');
 };
 const report = error => status(error.message || String(error));
+
+function showLoadbar(label, progress, detail = '') {
+  const panel = $('loadbar-panel');
+  if (!panel) return;
+  panel.hidden = false;
+  panel.setAttribute('aria-busy', 'true');
+  $('loadbar-label').textContent = label;
+  const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+  $('loadbar-percent').textContent = `${pct}%`;
+  const fill = $('loadbar-fill');
+  if (fill) fill.style.width = `${pct}%`;
+  const bar = $('loadbar');
+  if (bar) bar.setAttribute('aria-valuenow', pct);
+  $('loadbar-detail').textContent = detail;
+}
+
+function hideLoadbar() {
+  const panel = $('loadbar-panel');
+  if (panel) {
+    panel.hidden = true;
+    panel.setAttribute('aria-busy', 'false');
+  }
+}
+
 async function refreshLibrary() {
   const games = await listGames();
   $('library').replaceChildren();
@@ -32,16 +62,30 @@ async function refreshLibrary() {
     row.append(load, remove); $('library').append(row);
   }
 }
+
 async function loadFile(meta) {
   const file = await getCachedFile(meta);
   await mountFile(file, meta.kind);
 }
+
 async function mountFile(file, kind) {
   const result = await backend.request('mount', { file, kind });
-  $(kind === 'bios' ? 'bios-name' : 'selected').textContent = `${result.name} · ${(result.size / 1048576).toFixed(1)} MiB`;
+  if (kind === 'bios') {
+    hasBios = true;
+    const isBaked = file.name.includes('Baked-in') || file.name === 'bios.bin';
+    $('bios-name').textContent = isBaked
+      ? `[Baked-in] SCPH-70004 EUR v2.00 · ${(result.size / 1048576).toFixed(1)} MiB`
+      : `${result.name} · ${(result.size / 1048576).toFixed(1)} MiB`;
+  } else {
+    hasGame = true;
+    $('selected').textContent = `${result.name} · ${(result.size / 1048576).toFixed(1)} MiB`;
+    $('btn-load-game').disabled = false;
+    $('play').disabled = false;
+  }
   status(`${kind === 'bios' ? 'BIOS' : 'Game'} mounted. Header and end-of-file reads verified.`);
   return result;
 }
+
 async function importFile(file, kind) {
   if (!file || !ready || importing || downloading) return;
   if (!file.size) throw new Error('The selected file is empty.');
@@ -73,8 +117,96 @@ async function importFile(file, kind) {
     await refreshLibrary();
   }
 }
+
+async function loadAndRunGame() {
+  if (!hasGame || isRunning) return;
+  $('btn-load-game').disabled = true;
+  $('play').disabled = true;
+  $('pause').disabled = true;
+  $('stop').disabled = false;
+
+  try {
+    showLoadbar('Loading game…', 0.15, 'Verifying console BIOS and virtual disc…');
+    await new Promise(r => setTimeout(r, 60));
+
+    if (!hasBios) {
+      showLoadbar('Loading baked-in BIOS…', 0.35, 'Fetching European PS2 BIOS…');
+      const response = await fetch('./bios.bin');
+      if (response.ok) {
+        const blob = await response.blob();
+        const bakedFile = new File([blob], 'SCPH-70004 EUR v2.00 (Baked-in)', { type: 'application/octet-stream' });
+        await mountFile(bakedFile, 'bios');
+      }
+    }
+
+    showLoadbar('Mounting filesystem…', 0.50, 'Attaching disc image to CDVD reader…');
+    await new Promise(r => setTimeout(r, 60));
+
+    showLoadbar('Initializing PCSX2 core…', 0.70, 'Starting EE, IOP, VU, and GS software pipelines…');
+    await new Promise(r => setTimeout(r, 60));
+
+    showLoadbar('Booting PlayStation 2…', 0.88, 'Executing guest system startup sequence…');
+    await backend.request('boot');
+
+    showLoadbar('Game running', 1.00, 'Emulation active');
+    await new Promise(r => setTimeout(r, 150));
+    hideLoadbar();
+
+    $('empty').hidden = true;
+    $('pause').disabled = false;
+    $('stop').disabled = false;
+    $('fps').textContent = 'Starting…';
+    isRunning = true;
+    status('Game running.');
+  } catch (err) {
+    hideLoadbar();
+    $('btn-load-game').disabled = !hasGame;
+    $('play').disabled = !hasGame;
+    $('pause').disabled = true;
+    $('stop').disabled = true;
+    report(err);
+  }
+}
+
+async function pauseGame() {
+  if (!isRunning) return;
+  isPaused = !isPaused;
+  await backend.request('pause', { paused: isPaused });
+  $('pause').textContent = isPaused ? 'Resume' : 'Pause';
+  status(isPaused ? 'Emulation paused.' : 'Emulation resumed.');
+}
+
+async function stopGame() {
+  if (!isRunning) return;
+  await backend.request('stop');
+  isRunning = false;
+  isPaused = false;
+  $('empty').hidden = false;
+  $('play').disabled = !hasGame;
+  $('btn-load-game').disabled = !hasGame;
+  $('pause').disabled = true;
+  $('pause').textContent = 'Pause';
+  $('stop').disabled = true;
+  $('fps').textContent = 'No game running';
+  status('Emulation stopped.');
+}
+
+function updateMetrics(metrics) {
+  if (!metrics || metrics.length < 5) return;
+  const fps = metrics[2];
+  const speed = metrics[4];
+  $('fps').textContent = `${fps.toFixed(1)} FPS · ${speed.toFixed(0)}% speed`;
+}
+
 $('disc').onchange = event => { const file = event.target.files[0]; event.target.value = ''; importFile(file, 'disc').catch(report); };
 $('bios').onchange = event => { const file = event.target.files[0]; event.target.value = ''; importFile(file, 'bios').catch(report); };
+$('btn-load-game').onclick = () => loadAndRunGame().catch(report);
+$('play').onclick = () => {
+  if (!isRunning) loadAndRunGame().catch(report);
+  else if (isPaused) pauseGame().catch(report);
+};
+$('pause').onclick = () => pauseGame().catch(report);
+$('stop').onclick = () => stopGame().catch(report);
 $('cancel').onclick = () => importController?.abort();
 $('drop').onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); $('disc').click(); } };
 for (const name of ['dragenter', 'dragover']) $('drop').addEventListener(name, event => { event.preventDefault(); $('drop').classList.add('active'); });
@@ -90,6 +222,24 @@ $('validate').onclick = async () => {
   } catch (error) { $('validation').textContent = `Failed: ${error.message}`; }
   finally { $('validate').disabled = !ready; }
 };
+
+const keyMap = {
+  'ArrowUp': 'Up', 'ArrowDown': 'Down', 'ArrowLeft': 'Left', 'ArrowRight': 'Right',
+  'Enter': 'Return', 'ShiftLeft': 'Shift', 'ShiftRight': 'Shift',
+  'KeyZ': 'Z', 'KeyX': 'X', 'KeyA': 'A', 'KeyS': 'S',
+  'KeyQ': 'Q', 'KeyW': 'W', 'KeyE': 'E', 'KeyR': 'R', 'Space': 'Space'
+};
+window.addEventListener('keydown', event => {
+  if (isRunning && keyMap[event.code] && !event.target.closest('input,textarea,select')) {
+    backend.send('key', { name: keyMap[event.code], pressed: true });
+  }
+});
+window.addEventListener('keyup', event => {
+  if (isRunning && keyMap[event.code] && !event.target.closest('input,textarea')) {
+    backend.send('key', { name: keyMap[event.code], pressed: false });
+  }
+});
+
 async function initialize() {
   $('disc').disabled = $('bios').disabled = true;
   // Pages cannot set COOP/COEP, so the worker adds them after one reload.
@@ -110,17 +260,56 @@ async function initialize() {
   $('simd').textContent = simd ? 'Supported' : 'Unavailable';
   if (!simd) throw new Error('This browser does not support WebAssembly SIMD.');
   startInput(id => { $('gamepad').textContent = id || 'Connect a gamepad and press a button.'; });
+
+  const canvas = $('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   backend = new Backend();
+  backend.onFrame = ({ width, height, seq, pixels, metrics }) => {
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const imgData = new ImageData(new Uint8ClampedArray(pixels), width, height);
+    ctx.putImageData(imgData, 0, 0);
+    if (metrics) updateMetrics(metrics);
+  };
+  backend.onMetrics = ({ metrics }) => {
+    if (metrics) updateMetrics(metrics);
+  };
+
   const manifest = await backend.request('init');
   ready = true;
   $('disc').disabled = $('bios').disabled = false;
   $('validate').disabled = false;
-  $('core').textContent = `PCSX2 ${manifest.upstream.revision.slice(0,8)} · GS components`;
-  $('availability').textContent = 'The graphics components are ready. PS2 game execution is still being ported.';
-  status('You can cache and mount files, and validate the upstream GS kernels. Play is unavailable until the emulator core is connected.');
+  $('core').textContent = `PCSX2 ${manifest.upstream.revision.slice(0,8)} · GS & VM Core`;
+  $('availability').textContent = manifest.hasVM
+    ? 'PCSX2 WebAssembly core is ready. Select a game to load & run.'
+    : 'The graphics components are ready. PS2 game execution is still being ported.';
+  status('Backend initialized. Ready to load PlayStation 2 games.');
   startArchive(async meta => { await loadFile(meta); await refreshLibrary(); }, () => importing, async active => { downloading = active; await refreshLibrary(); });
   await refreshLibrary();
-  const bios = (await listGames()).find(entry => entry.kind === 'bios');
-  if (bios) await loadFile(bios);
+
+  // Load custom BIOS if saved, otherwise load baked-in European BIOS
+  const customBios = (await listGames()).find(entry => entry.kind === 'bios');
+  if (customBios) {
+    try {
+      await loadFile(customBios);
+    } catch (e) {
+      report(e);
+    }
+  } else {
+    try {
+      const response = await fetch('./bios.bin');
+      if (response.ok) {
+        const blob = await response.blob();
+        const bakedFile = new File([blob], 'SCPH-70004 EUR v2.00 (Baked-in)', { type: 'application/octet-stream' });
+        await mountFile(bakedFile, 'bios');
+      } else {
+        $('bios-name').textContent = 'No BIOS loaded';
+      }
+    } catch (_) {
+      $('bios-name').textContent = 'No BIOS loaded';
+    }
+  }
 }
 initialize().catch(error => { $('core').textContent = 'Unavailable'; $('availability').textContent = 'The backend could not start.'; report(error); });

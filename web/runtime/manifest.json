@@ -5,6 +5,9 @@
   "emulation": false,
   "factory": "createPCSX2Port",
   "entry": "pcsx2-port.js",
+  "vmFactory": "createPCSX2VM",
+  "vmEntry": "pcsx2-vm.js",
+  "hasVM": true,
   "upstream": {
     "repository": "https://github.com/PCSX2/pcsx2",
     "revision": "0f71e668b8adc950db7de1b1b15c2f5080c102e9"
@@ -24,11 +27,19 @@
   "files": {
     "pcsx2-port.js": {
       "bytes": 69163,
-      "sha256": "1413ba105c80ddb2da9b19407bf3728b9b3fefc629c18134107c5c550f017810"
+      "sha256": "33844f5bfa46528fb652d9a8d2af1219dd58455805af7d0a850fb03b83076204"
     },
     "pcsx2-port.wasm": {
       "bytes": 33038,
-      "sha256": "6e1c4f0e0d6f8cb8825de0500ad78586854874d2bfc2e026025a814050bf3aec"
+      "sha256": "416e0600f3673ece9585f1a3824ec28f8b51e7b2d2c5a4693e46a57ab841161d"
+    },
+    "pcsx2-vm.js": {
+      "bytes": 128048,
+      "sha256": "66dc74b39c6410966ed10997fc304366a6f4d3dabce084eb6d02b7353ecfd72e"
+    },
+    "pcsx2-vm.wasm": {
+      "bytes": 5428739,
+      "sha256": "9d2f8e43246383c17eb177013066a61b95dd5106cb02de56a01207343685c4de"
     }
   }
 }

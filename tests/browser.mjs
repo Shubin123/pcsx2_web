@@ -24,6 +24,11 @@ try {
   await page.waitForFunction(() => !document.getElementById('validate').disabled, { timeout: 30000 });
   assert.equal(await page.evaluate(() => crossOriginIsolated), true);
   assert.equal(await page.$eval('#play', element => element.disabled), true);
+  assert.equal(await page.$eval('#btn-load-game', element => element.disabled), true);
+  await page.waitForFunction(() => document.getElementById('bios-name').textContent.includes('Baked-in'));
+  assert.ok((await page.$eval('#bios-name', el => el.textContent)).includes('SCPH-70004 EUR v2.00'));
+  assert.ok(await page.$('#loadbar'));
+  assert.ok(await page.$('#loadbar-fill'));
   await page.waitForSelector('#archive-list li button');
   assert.equal(await page.$$eval('#archive-list li', rows => rows.length), 2);
   await page.click('#archive-list li button');
@@ -60,6 +65,12 @@ try {
   await page.waitForFunction(() => document.querySelector('#library li button'));
   await page.click('#library li button');
   await page.waitForFunction(() => document.getElementById('selected').textContent.includes('homebrew-test.elf'));
+  assert.equal(await page.$eval('#btn-load-game', el => el.disabled), false);
+  assert.equal(await page.$eval('#play', el => el.disabled), false);
+  await page.click('#btn-load-game');
+  await page.waitForFunction(() => !document.getElementById('loadbar-panel').hidden);
+  assert.ok((await page.$eval('#loadbar-label', el => el.textContent)).includes('Loading'));
+  await page.waitForFunction(() => document.getElementById('loadbar-panel').hidden, { timeout: 15000 });
   const result = await page.evaluate(async () => {
     const { Backend } = await import('./backend.js');
     const { cacheFile, listGames } = await import('./storage.js');
@@ -112,7 +123,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: 'artifacts/frontend-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
-  const report = { browser: await browser.version(), upstreamGS: 'passed', uiImport: 'passed', cachedReplay: 'passed', largeDiscBytes: result.mounted.size, largeDiscHeaderAndTail: 'passed', cancellationCleanup: 'passed', archiveDownloadCacheMount: 'passed (generated fixture)', widgetSizing: 'passed (pointer drag, scrolling, reload, sliders, columns, reset, responsive geometry)', layoutPersistence: 'passed', preferences: 'passed', mobileLayout: 'passed', gameExecution: 'not implemented' };
+  const report = { browser: await browser.version(), upstreamGS: 'passed', bakedInBios: 'passed', gameLoadingButton: 'passed', loadbar: 'passed', uiImport: 'passed', cachedReplay: 'passed', largeDiscBytes: result.mounted.size, largeDiscHeaderAndTail: 'passed', cancellationCleanup: 'passed', archiveDownloadCacheMount: 'passed (generated fixture)', widgetSizing: 'passed (pointer drag, scrolling, reload, sliders, columns, reset, responsive geometry)', layoutPersistence: 'passed', preferences: 'passed', mobileLayout: 'passed', gameExecution: 'not implemented' };
   await writeFile('artifacts/browser-report.json', JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report, null, 2));
 } finally { await browser?.close(); server.kill(); }

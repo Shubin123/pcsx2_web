@@ -4,9 +4,19 @@ export class Backend {
   #requests = new Map();
   #next = 0;
   #closed = false;
+  onFrame = null;
+  onMetrics = null;
   constructor() {
     this.#worker = new Worker(new URL('./core-worker.js', import.meta.url));
     this.#worker.onmessage = ({ data }) => {
+      if (data.type === 'frame') {
+        this.onFrame?.(data);
+        return;
+      }
+      if (data.type === 'metrics') {
+        this.onMetrics?.(data);
+        return;
+      }
       const request = this.#requests.get(data.id);
       if (!request) return;
       this.#requests.delete(data.id);
@@ -23,6 +33,10 @@ export class Backend {
       this.#requests.set(id, { resolve, reject, timer });
       this.#worker.postMessage({ id, action, data });
     });
+  }
+  send(action, data) {
+    if (this.#closed) return;
+    this.#worker.postMessage({ action, data });
   }
   dispose(error = new Error('Backend worker closed')) {
     this.#closed = true;
