@@ -12,7 +12,7 @@
     "repository": "https://github.com/PCSX2/pcsx2",
     "revision": "0f71e668b8adc950db7de1b1b15c2f5080c102e9"
   },
-  "backendRevision": "df29048e0d93a5f59de9d163e44a53c23a03ed00",
+  "backendRevision": "cc0b630a14c4d863abd1f715f2428b6a2d72b715",
   "toolchain": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.9 (4e4223852a0835923411059a3929907d7df1232e)",
   "features": [
     "wasm-simd128",
@@ -40,14 +40,14 @@
       "sha256": "0d4b9bed0dc19444f777561ec94ac67336e5f8c0d3b991a517c2035310de1611"
     },
     "pcsx2-vm.wasm": {
-      "bytes": 5572876,
-      "sha256": "b2a41c33e7a72821ca87be4ec03110161ee11c0a106a7de743028b6e4c49bf56"
+      "bytes": 5600042,
+      "sha256": "7cf7ddd9cd6a9e71a81165304a8c2965c1ea86f2cfae0a71cecfda1812ba0d09"
     }
   },
   "sourceArchive": {
     "file": "pcsx2-source.tar.gz",
-    "revision": "df29048e0d93a5f59de9d163e44a53c23a03ed00",
-    "bytes": 22702994,
-    "sha256": "8dc96d1d294bba34c12ae9cf65adc35c71d65a1805cd3c95da333f74d721111c"
+    "revision": "cc0b630a14c4d863abd1f715f2428b6a2d72b715",
+    "bytes": 22711640,
+    "sha256": "4d02177ebaa1e842381a03d2187ef89320df0fb4cca1164d420102c132176dcf"
   }
 }

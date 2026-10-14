@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0+
 const $ = id => document.getElementById(id);
-const defaults = { aspect: '4:3', filter: 'pixelated', cache: true };
+const defaults = { aspect: '4:3', filter: 'pixelated', cache: true, mtvu: true };
 let settings = { ...defaults };
 try { const saved = JSON.parse(localStorage.getItem('pcsx2-preferences')); for (const key of Object.keys(defaults)) if (saved && typeof saved[key] === typeof defaults[key]) settings[key] = saved[key]; } catch {}
 function apply() {
   // PS2 output is 4:3 (or anamorphic 16:9) whatever its framebuffer size; 'native' was 640x448.
   if (!['4:3', '16:9'].includes(settings.aspect)) settings.aspect = '4:3';
   if (!['pixelated', 'auto'].includes(settings.filter)) settings.filter = 'pixelated';
-  $('aspect').value = settings.aspect; $('filter').value = settings.filter; $('cache').checked = settings.cache;
+  $('aspect').value = settings.aspect; $('filter').value = settings.filter; $('cache').checked = settings.cache; $('mtvu').checked = settings.mtvu;
   $('screen').style.setProperty('--screen-aspect', settings.aspect.replace(':', '/'));
   $('canvas').style.imageRendering = settings.filter;
 }
 for (const key of Object.keys(defaults)) $(key).addEventListener('change', () => {
-  settings[key] = key === 'cache' ? $(key).checked : $(key).value;
+  settings[key] = typeof defaults[key] === 'boolean' ? $(key).checked : $(key).value;
   try { localStorage.setItem('pcsx2-preferences', JSON.stringify(settings)); } catch {}
   apply();
 });
