@@ -77,6 +77,9 @@ if (globalThis.name === 'em-pthread') {
     if (!frameBufferPtr) frameBufferPtr = vmModule._malloc(1024 * 1024 * 4);
     if (!metricsPtr) metricsPtr = vmModule._malloc(8 * 6);
 
+    // Read metadata first; unchanged frames need no 1.2 MiB Wasm copy or transfer.
+    vmModule._pcsx2_vm_frame(0, 0, frameInfoPtr);
+    let lastSequence = vmModule.HEAPU32[frameInfoPtr / 4 + 2];
     frameTimer = setInterval(() => {
       if (!running || !vmModule) return;
       const state = vmModule._pcsx2_vm_state();
@@ -92,12 +95,15 @@ if (globalThis.name === 'em-pthread') {
         vmModule.HEAPF64[metricsPtr / 8 + 5]
       ];
 
-      const copied = vmModule._pcsx2_vm_frame(frameBufferPtr, 1024 * 1024 * 4, frameInfoPtr);
+      vmModule._pcsx2_vm_frame(0, 0, frameInfoPtr);
+      const sequence = vmModule.HEAPU32[frameInfoPtr / 4 + 2];
+      const copied = sequence !== lastSequence && vmModule._pcsx2_vm_frame(frameBufferPtr, 1024 * 1024 * 4, frameInfoPtr);
       if (copied) {
         const width = vmModule.HEAPU32[frameInfoPtr / 4];
         const height = vmModule.HEAPU32[frameInfoPtr / 4 + 1];
         const seq = vmModule.HEAPU32[frameInfoPtr / 4 + 2];
         if (width > 0 && height > 0) {
+          lastSequence = seq;
           const pixels = new Uint8ClampedArray(vmModule.HEAPU8.buffer, frameBufferPtr, width * height * 4);
           const copy = new Uint8ClampedArray(pixels);
           self.postMessage({ type: 'frame', width, height, seq, pixels: copy.buffer, metrics }, [copy.buffer]);
@@ -109,6 +115,9 @@ if (globalThis.name === 'em-pthread') {
   }
 
   async function boot() {
+    if (typeof WebAssembly.Exception !== 'function' || typeof WebAssembly.Tag !== 'function') {
+      throw new Error('This browser cannot run the current emulator. Please update your browser.');
+    }
     if (!manifest?.hasVM) throw new Error('VM binary not available in manifest');
     const biosFile = mountedBlobs.get('bios');
     const discFile = mountedBlobs.get('disc');

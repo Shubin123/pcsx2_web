@@ -9,7 +9,9 @@
     "sync": "node scripts/sync-runtime.mjs",
     "check": "node scripts/check.mjs",
     "test": "node tests/browser.mjs",
-    "test:game-import": "node tests/game-import.mjs"
+    "test:game-import": "node tests/game-import.mjs",
+    "test:game-framebuffer": "node tests/game-framebuffer.mjs",
+    "test:performance": "node tests/performance.mjs"
   },
   "devDependencies": {"puppeteer-core": "^23.11.1"}
 }

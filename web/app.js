@@ -14,6 +14,7 @@ let hasBios = false;
 let hasGame = false;
 let isRunning = false;
 let isPaused = false;
+let waitingForVideo = false;
 
 const status = message => {
   $('status').textContent = message;
@@ -146,19 +147,18 @@ async function loadAndRunGame() {
     await new Promise(r => setTimeout(r, 60));
 
     showLoadbar('Booting PlayStation 2…', 0.88, 'Executing guest system startup sequence…');
+    waitingForVideo = true;
     await backend.request('boot');
-
-    showLoadbar('Game running', 1.00, 'Emulation active');
-    await new Promise(r => setTimeout(r, 150));
-    hideLoadbar();
+    if (waitingForVideo) showLoadbar('Starting game…', 0.88, 'Waiting for the first visible game frame. Interpreter startup can take several minutes.');
 
     $('empty').hidden = true;
     $('pause').disabled = false;
     $('stop').disabled = false;
     $('fps').textContent = 'Starting…';
     isRunning = true;
-    status('Game running.');
+    status(waitingForVideo ? 'Starting game — waiting for video.' : 'Game running.');
   } catch (err) {
+    waitingForVideo = false;
     hideLoadbar();
     $('btn-load-game').disabled = !hasGame;
     $('play').disabled = !hasGame;
@@ -178,6 +178,8 @@ async function pauseGame() {
 
 async function stopGame() {
   if (!isRunning) return;
+  waitingForVideo = false;
+  hideLoadbar();
   await backend.request('stop');
   isRunning = false;
   isPaused = false;
@@ -271,6 +273,17 @@ async function initialize() {
     }
     const imgData = new ImageData(new Uint8ClampedArray(pixels), width, height);
     ctx.putImageData(imgData, 0, 0);
+    if (waitingForVideo) {
+      let visible = 0;
+      for (let i = 0; i < imgData.data.length && visible <= 1000; i += 4) {
+        if (imgData.data[i + 3] > 0 && (imgData.data[i] > 8 || imgData.data[i + 1] > 8 || imgData.data[i + 2] > 8)) visible++;
+      }
+      if (visible > 1000) {
+        waitingForVideo = false;
+        hideLoadbar();
+        status('Game running.');
+      }
+    }
     if (metrics) updateMetrics(metrics);
   };
   backend.onMetrics = ({ metrics }) => {

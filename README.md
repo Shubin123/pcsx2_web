@@ -105,3 +105,21 @@ These tests do not establish game compatibility or gameplay performance.
 
 See [the backend port status](https://github.com/Shubin123/pcsx2_emscripten/blob/main/WEB_PORT.md)
 for the remaining CPU, memory, graphics, audio, and VM work.
+
+### Local performance validation
+
+The browser VM uses native Wasm exception handling; an unsupported browser
+gets an update message before boot. In the local Apple M1 / Chrome 155 intro
+benchmark, first video improved from 86.5 to 26.2 seconds and the visible
+18–20 guest-second window improved from about 2.6 to 13–15 FPS. Full PAL speed
+and gameplay FPS have not been verified.
+
+`npm run test:performance` uses the real UI/canvas and requires `PS2_BIOS` and
+`GAME_ISO` pointing to local files. It records guest time, vsyncs, internal FPS,
+frame hashes, hardware/settings, Wasm checksum, and every worker's CPU profile
+in `artifacts/performance/`. Use `PROFILE=0` to disable CPU sampling, `DURATION`
+for wall-clock seconds, and `OUT` for another artifact directory. CPU profiles
+with readable Wasm names need a backend built with `PCSX2_WEB_PROFILE=ON` and
+synced first. Compare the same visible guest scene, not black startup frames
+or canvas refresh counts. `node scripts/summarize-profile.mjs <directory>`
+reports the 18–20 guest-second intro window.
