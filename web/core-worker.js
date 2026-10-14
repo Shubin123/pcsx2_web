@@ -13,6 +13,26 @@ if (globalThis.name === 'em-pthread') {
   let frameInfoPtr = 0;
   let frameBufferPtr = 0;
   let metricsPtr = 0;
+  const WORKER_PROTOCOL = 2; // Must match app.js.
+  let vmCompile = null;
+  let pendingSettings = '';
+
+  const runtimeUrl = name => new URL(`./runtime/${name}?v=${manifest.files[name]?.sha256 || manifest.backendRevision}`, self.location).href;
+
+  // Download and compile the VM while the user picks a game, so Play only instantiates it.
+  // Instantiating early would reserve the VM's 1 GiB heap and spawn its threads; compiling
+  // does neither. The browser also caches the compiled code for later visits.
+  function compileVM() {
+    if (!manifest?.hasVM) return null;
+    vmCompile ??= (async () => {
+      importScripts(runtimeUrl('pcsx2-vm.js'));
+      const response = fetch(runtimeUrl('pcsx2-vm.wasm'), { credentials: 'same-origin' });
+      try { return await WebAssembly.compileStreaming(response); }
+      catch { return WebAssembly.compile(await (await response).arrayBuffer()); } // Wrong MIME type
+    })();
+    vmCompile.catch(() => { vmCompile = null; });
+    return vmCompile;
+  }
 
   async function initialize() {
     const response = await fetch('./runtime/manifest.json', { cache: 'no-cache' });
@@ -29,7 +49,8 @@ if (globalThis.name === 'em-pthread') {
     if (module._pcsx2_port_abi() !== manifest.abi || Boolean(module._pcsx2_port_capabilities() & 2) !== manifest.emulation) {
       throw new Error('Backend ABI or capability mismatch');
     }
-    return manifest;
+    compileVM()?.catch(() => {}); // Boot reports a failure; preloading is best effort.
+    return { ...manifest, workerProtocol: WORKER_PROTOCOL };
   }
 
   async function mount({ file, kind }) {
@@ -80,24 +101,22 @@ if (globalThis.name === 'em-pthread') {
     // Read metadata first; unchanged frames need no 1.2 MiB Wasm copy or transfer.
     vmModule._pcsx2_vm_frame(0, 0, frameInfoPtr);
     let lastSequence = vmModule.HEAPU32[frameInfoPtr / 4 + 2];
+    // Poll finely: frame arrival times feed the page's pacing, and a coarse timer would
+    // quantise them. Metadata reads are cheap; pixels are copied only for new frames.
+    let lastMetrics = 0;
     frameTimer = setInterval(() => {
       if (!running || !vmModule) return;
       const state = vmModule._pcsx2_vm_state();
       if (state === 0) return;
 
-      vmModule._pcsx2_vm_metrics(metricsPtr);
-      const metrics = [
-        vmModule.HEAPF64[metricsPtr / 8],
-        vmModule.HEAPF64[metricsPtr / 8 + 1],
-        vmModule.HEAPF64[metricsPtr / 8 + 2],
-        vmModule.HEAPF64[metricsPtr / 8 + 3],
-        vmModule.HEAPF64[metricsPtr / 8 + 4],
-        vmModule.HEAPF64[metricsPtr / 8 + 5]
-      ];
-
       vmModule._pcsx2_vm_frame(0, 0, frameInfoPtr);
       const sequence = vmModule.HEAPU32[frameInfoPtr / 4 + 2];
+      const now = performance.now();
       const copied = sequence !== lastSequence && vmModule._pcsx2_vm_frame(frameBufferPtr, 1024 * 1024 * 4, frameInfoPtr);
+      if (!copied && now - lastMetrics < 250) return;
+      lastMetrics = now;
+      vmModule._pcsx2_vm_metrics(metricsPtr);
+      const metrics = Array.from({ length: 6 }, (_, i) => vmModule.HEAPF64[metricsPtr / 8 + i]);
       if (copied) {
         const width = vmModule.HEAPU32[frameInfoPtr / 4];
         const height = vmModule.HEAPU32[frameInfoPtr / 4 + 1];
@@ -106,15 +125,27 @@ if (globalThis.name === 'em-pthread') {
           lastSequence = seq;
           const pixels = new Uint8ClampedArray(vmModule.HEAPU8.buffer, frameBufferPtr, width * height * 4);
           const copy = new Uint8ClampedArray(pixels);
-          self.postMessage({ type: 'frame', width, height, seq, pixels: copy.buffer, metrics }, [copy.buffer]);
+          self.postMessage({ type: 'frame', width, height, seq, time: now, pixels: copy.buffer, metrics }, [copy.buffer]);
           return;
         }
       }
       self.postMessage({ type: 'metrics', metrics });
-    }, 16);
+    }, 4);
   }
 
-  async function boot() {
+  function applySettings(lines) {
+    const ptr = vmModule.stringToNewUTF8(lines);
+    vmModule._pcsx2_vm_set_settings(ptr);
+    vmModule._free(ptr);
+  }
+
+  /** Controller bindings: applied now if the VM exists, otherwise at boot. */
+  function setBindings(lines) {
+    if (vmModule) applySettings(lines);
+    else pendingSettings = lines;
+  }
+
+  async function boot(data) {
     if (typeof WebAssembly.Exception !== 'function' || typeof WebAssembly.Tag !== 'function') {
       throw new Error('This browser cannot run the current emulator. Please update your browser.');
     }
@@ -125,9 +156,13 @@ if (globalThis.name === 'em-pthread') {
     if (!discFile) throw new Error('Game disc is not mounted');
 
     if (!vmModule) {
-      importScripts(`./runtime/pcsx2-vm.js?v=${manifest.files['pcsx2-vm.js']?.sha256 || manifest.backendRevision}`);
+      const compiled = await compileVM();
       vmModule = await self.createPCSX2VM({
-        locateFile: name => new URL(`./runtime/${name}?v=${manifest.files[name]?.sha256 || manifest.backendRevision}`, self.location).href
+        locateFile: runtimeUrl,
+        instantiateWasm(imports, receive) {
+          WebAssembly.instantiate(compiled, imports).then(instance => receive(instance, compiled));
+          return {};
+        }
       });
     }
 
@@ -144,22 +179,20 @@ if (globalThis.name === 'em-pthread') {
     }
     vmModule._pcsx2_vm_set_surface(640, 480);
 
-    const setSetting = (sec, key, val) => {
-      const sPtr = vmModule.stringToNewUTF8(sec);
-      const kPtr = vmModule.stringToNewUTF8(key);
-      const vPtr = vmModule.stringToNewUTF8(val);
-      vmModule._pcsx2_vm_set_setting(sPtr, kPtr, vPtr);
-      vmModule._free(sPtr); vmModule._free(kPtr); vmModule._free(vPtr);
-    };
-
-    setSetting('EmuCore/Speedhacks', 'fastCDVD', 'true');
-    setSetting('EmuCore/Speedhacks', 'EECycleSkip', '2');
-    setSetting('EmuCore/Speedhacks', 'EECycleRate', '-2');
-    setSetting('EmuCore/Speedhacks', 'IntcStat', 'true');
-    setSetting('EmuCore/Speedhacks', 'WaitLoop', 'true');
-    setSetting('EmuCore/Speedhacks', 'vu1Instant', 'true');
-    setSetting('EmuCore/GS', 'FrameLimitEnable', 'false');
-    setSetting('EmuCore/GS', 'extrathreads', '0');
+    // One batch, so the core applies settings once rather than per key.
+    applySettings([
+      ['EmuCore/Speedhacks', 'fastCDVD', 'true'],
+      ['EmuCore/Speedhacks', 'EECycleSkip', '2'],
+      ['EmuCore/Speedhacks', 'EECycleRate', '-2'],
+      ['EmuCore/Speedhacks', 'IntcStat', 'true'],
+      ['EmuCore/Speedhacks', 'WaitLoop', 'true'],
+      ['EmuCore/Speedhacks', 'vu1Instant', 'true'],
+      ['EmuCore/GS', 'extrathreads', '0']
+    ].map(entry => entry.join('\t')).join('\n') + (pendingSettings ? `\n${pendingSettings}` : ''));
+    pendingSettings = '';
+    // Startup shows black frames while the game loads; run it unthrottled until the page
+    // sees a picture. Throttling only maps guest time to wall time.
+    vmModule._pcsx2_vm_set_limiter(data?.fastStart ? 3 : 0);
 
     const pathPtr = vmModule.stringToNewUTF8('/disc/image');
     const bootOk = vmModule._pcsx2_vm_boot(pathPtr);
@@ -181,6 +214,16 @@ if (globalThis.name === 'em-pthread') {
     if (vmModule) vmModule._pcsx2_vm_stop();
   }
 
+  /** Controller 1 inputs as the emulated DualShock 2 holds them (PadDualshock2 order). */
+  function padState() {
+    if (!vmModule) return null;
+    const ptr = vmModule._malloc(64);
+    try {
+      const count = vmModule._pcsx2_vm_pad_inputs(ptr, 64);
+      return Array.from(vmModule.HEAPU8.subarray(ptr, ptr + Math.min(count, 64)));
+    } finally { vmModule._free(ptr); }
+  }
+
   function sendKey(name, pressed) {
     if (!vmModule) return;
     const ptr = vmModule.stringToNewUTF8(name);
@@ -195,6 +238,15 @@ if (globalThis.name === 'em-pthread') {
       sendKey(event.data.data.name, event.data.data.pressed);
       return;
     }
+    if (event.data.action === 'limiter') {
+      vmModule?._pcsx2_vm_set_limiter(event.data.data.mode);
+      return;
+    }
+    if (event.data.action === 'bindings') {
+      // Before boot this only records the lines; keep it ordered with boot via the queue.
+      pending = pending.then(() => { try { setBindings(event.data.data.lines); } catch (error) { console.error(error); } });
+      return;
+    }
     pending = pending.then(async () => {
       const { id, action, data } = event.data;
       try {
@@ -202,9 +254,10 @@ if (globalThis.name === 'em-pthread') {
         if (action === 'init') result = await initialize();
         else if (action === 'mount') result = await mount(data);
         else if (action === 'validate') result = validate();
-        else if (action === 'boot') result = await boot();
+        else if (action === 'boot') result = await boot(data);
         else if (action === 'pause') { pause(data.paused); result = { paused: data.paused }; }
         else if (action === 'stop') { stop(); result = { stopped: true }; }
+        else if (action === 'padState') result = padState();
         else throw new Error(`Unsupported action: ${action}`);
         self.postMessage({ id, result });
       } catch (error) { self.postMessage({ id, error: error.message }); }

@@ -15,6 +15,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # Controller layers that need no BIOS or game: keyboard logic and the shipped core.
+      - run: npm run test:input
       - run: npm test
         env:
           CHROME_PATH: /usr/bin/google-chrome

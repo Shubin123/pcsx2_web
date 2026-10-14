@@ -19,7 +19,11 @@ self.addEventListener('fetch', event => {
     if (requestUrl.origin !== self.location.origin) return;
 
     event.respondWith((async () => {
-        const response = await fetch(event.request);
+        // Unversioned page files must not mix across deploys (static hosts cache them for
+        // minutes): revalidate them. Runtime files carry ?v=<sha256> and may stay cached.
+        const versioned = requestUrl.searchParams.has('v');
+        const response = versioned ? await fetch(event.request)
+            : await fetch(event.request.mode === 'navigate' ? requestUrl.href : event.request, { cache: 'no-cache' });
         if (response.type === 'opaque') return response;
 
         const headers = new Headers(response.headers);

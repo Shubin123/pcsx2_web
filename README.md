@@ -8,9 +8,9 @@ boot and game execution are not implemented yet. Play remains disabled.**
 
 Working features: dedicated Wasm worker, SIMD GS kernel validation, read-only
 ISO/BIN/ELF mounts, streaming OPFS cache, cached-file replay/removal, persisted
-BIOS selection, import cancellation and quota checks, keyboard/gamepad packet
-capture, fullscreen, and responsive layout. Input packets are not yet consumed
-by a PS2 core. BIN mounting does not establish cue-sheet/CD image compatibility;
+BIOS selection, import cancellation and quota checks, remappable keyboard
+controls for controller 1, fullscreen, and responsive layout. Gamepads are
+detected but not yet forwarded to the core. BIN mounting does not establish cue-sheet/CD image compatibility;
 BIOS size checks do not validate whether a ROM is a correct PS2 BIOS.
 The Internet Archive catalog at https://archive.org/download/playstation-2-games-iso
 supports title search, region filters, sorting, pagination, refresh, and streamed
@@ -113,6 +113,43 @@ gets an update message before boot. In the local Apple M1 / Chrome 155 intro
 benchmark, first video improved from 86.5 to 26.2 seconds and the visible
 18–20 guest-second window improved from about 2.6 to 13–15 FPS. Full PAL speed
 and gameplay FPS have not been verified.
+
+Keyboard controls (Controller widget; click a key to rebind, Esc cancels,
+saved in `localStorage`): arrows = D-pad, Z/X/A/S = Cross/Circle/Square/Triangle,
+Enter/right Shift = Start/Select, Q/W/E/R = L1/R1/L2/R2, C/V = L3/R3, IJKL and
+TFGH = left and right sticks, P = pause, hold Tab = fast-forward, F11 =
+fullscreen. The page sends these as `Pad1` bindings to the core, which clears
+upstream's desktop hotkeys so they cannot desync the page controls.
+
+Startup runs unthrottled until the first visible picture, then at normal speed;
+throttling only maps guest time to wall time. The worker downloads and compiles
+the VM while a game is chosen. Frames arrive at the game's native display size
+and the canvas scales them on the GPU; a short queue presents them at the
+average arrival interval on display refresh, smoothing uneven pacing below full
+speed at a cost of about one frame of latency.
+
+On the local Apple M1 / Chrome 155 intro benchmark, first picture takes 13.1 s (was
+26.2 s) and the 18–20 guest-second window runs at 0.32x guest speed / 16.0 vsync Hz (was
+0.29x / 14.4 Hz). Full PAL speed is not reached.
+
+Controller tests, `npm run test:controls` (fastest first; stops at the first failing layer;
+layers without local media report SKIP, never PASS):
+
+| Layer | Needs | Checks |
+|---|---|---|
+| `unit` | nothing | key names, focus rules, hotkeys only during a game, release on blur, rebinding, persistence |
+| `contract` | nothing | the page's real `keyboard.js` against the shipped Wasm core: every key name accepted, all 24 inputs, chords, rebinding/unbinding, hotkeys unbound, read back with `pcsx2_vm_pad_inputs` |
+| `browser` | BIOS (`PS2_BIOS` or local `web/bios.bin`) | trusted Chrome key events through page, worker and a booted VM for all 24 inputs; toolbar button, select, text field and canvas focus; Ctrl shortcuts; blur; P pause; Tab; rebinding in the widget, across reload, and reset |
+| `game` | `PS2_BIOS`, `GAME_ISO` (Beverly Hills Cop Europe) | the game reacts: Right/Left change the language, Cross leaves the menu, P stops guest time |
+
+`npm run test:input` runs the first two (CI runs them on pull requests). The backend's
+`web-keyboard-input` CTest covers the core side. Deliberately breaking a key name or
+dropping the page's bindings makes `unit`/`contract` and `browser` fail. Chrome 155 / M1:
+all four layers passed (unit 0.2 s, contract 1.2 s, browser 12.6 s, game 170 s).
+
+Deployed pages revalidate unversioned files through the service worker, and the page
+reloads once if its worker speaks a different protocol, so a cached old worker cannot
+silently drop the controller layout after an update.
 
 `npm run test:performance` uses the real UI/canvas and requires `PS2_BIOS` and
 `GAME_ISO` pointing to local files. It records guest time, vsyncs, internal FPS,

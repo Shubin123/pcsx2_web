@@ -3,8 +3,10 @@ import { Backend } from './backend.js';
 import { cacheFile, getCachedFile, listGames, removeCachedFile } from './storage.js';
 import { startInput } from './input.js';
 import { startArchive } from './archive.js';
+import { Keyboard, actions, keyLabel } from './keyboard.js';
 
 const $ = id => document.getElementById(id);
+const WORKER_PROTOCOL = 2; // Must match core-worker.js.
 let backend;
 let importController;
 let importing = false;
@@ -15,6 +17,11 @@ let hasGame = false;
 let isRunning = false;
 let isPaused = false;
 let waitingForVideo = false;
+let fastForward = false;
+const keyboard = new Keyboard();
+
+// Unthrottled while waiting for the first picture or while fast-forward is held.
+const updateLimiter = () => backend?.send('limiter', { mode: waitingForVideo || fastForward ? 3 : 0 });
 
 const status = message => {
   $('status').textContent = message;
@@ -148,7 +155,8 @@ async function loadAndRunGame() {
 
     showLoadbar('Booting PlayStation 2…', 0.88, 'Executing guest system startup sequence…');
     waitingForVideo = true;
-    await backend.request('boot');
+    backend.send('bindings', { lines: keyboard.settingsLines() });
+    await backend.request('boot', { fastStart: true });
     if (waitingForVideo) showLoadbar('Starting game…', 0.88, 'Waiting for the first visible game frame. Interpreter startup can take several minutes.');
 
     $('empty').hidden = true;
@@ -156,6 +164,10 @@ async function loadAndRunGame() {
     $('stop').disabled = false;
     $('fps').textContent = 'Starting…';
     isRunning = true;
+    keyboard.session = true;
+    keyboard.enabled = !isPaused;
+    // Keep Enter/Space for the game rather than the focused toolbar button.
+    $('screen').focus({ preventScroll: true });
     status(waitingForVideo ? 'Starting game — waiting for video.' : 'Game running.');
   } catch (err) {
     waitingForVideo = false;
@@ -171,6 +183,8 @@ async function loadAndRunGame() {
 async function pauseGame() {
   if (!isRunning) return;
   isPaused = !isPaused;
+  keyboard.releaseAll();
+  keyboard.enabled = !isPaused;
   await backend.request('pause', { paused: isPaused });
   $('pause').textContent = isPaused ? 'Resume' : 'Pause';
   status(isPaused ? 'Emulation paused.' : 'Emulation resumed.');
@@ -180,6 +194,8 @@ async function stopGame() {
   if (!isRunning) return;
   waitingForVideo = false;
   hideLoadbar();
+  keyboard.releaseAll();
+  keyboard.session = keyboard.enabled = false;
   await backend.request('stop');
   isRunning = false;
   isPaused = false;
@@ -225,22 +241,45 @@ $('validate').onclick = async () => {
   finally { $('validate').disabled = !ready; }
 };
 
-const keyMap = {
-  'ArrowUp': 'Up', 'ArrowDown': 'Down', 'ArrowLeft': 'Left', 'ArrowRight': 'Right',
-  'Enter': 'Return', 'ShiftLeft': 'Shift', 'ShiftRight': 'Shift',
-  'KeyZ': 'Z', 'KeyX': 'X', 'KeyA': 'A', 'KeyS': 'S',
-  'KeyQ': 'Q', 'KeyW': 'W', 'KeyE': 'E', 'KeyR': 'R', 'Space': 'Space'
+for (const select of document.querySelectorAll('select')) select.addEventListener('change', () => { if (isRunning) $('screen').focus({ preventScroll: true }); });
+keyboard.onPadKey = (name, pressed) => backend?.send('key', { name, pressed });
+keyboard.onHotkey = (id, pressed) => {
+  if (id === 'fastForward') { fastForward = pressed && isRunning; updateLimiter(); }
+  else if (!pressed) return;
+  else if (id === 'pause') pauseGame().catch(report);
+  else if (id === 'fullscreen') $('fullscreen').click();
 };
-window.addEventListener('keydown', event => {
-  if (isRunning && keyMap[event.code] && !event.target.closest('input,textarea,select')) {
-    backend.send('key', { name: keyMap[event.code], pressed: true });
+keyboard.onBindingsChanged = () => {
+  renderKeyBindings();
+  if (isRunning) backend.send('bindings', { lines: keyboard.settingsLines() });
+};
+keyboard.onCapture = id => {
+  for (const button of document.querySelectorAll('#key-bindings button')) {
+    const capturing = button.dataset.action === id;
+    button.classList.toggle('capturing', capturing);
+    button.textContent = capturing ? 'Press a key…' : keyLabel(keyboard.bindings[button.dataset.action]);
   }
-});
-window.addEventListener('keyup', event => {
-  if (isRunning && keyMap[event.code] && !event.target.closest('input,textarea')) {
-    backend.send('key', { name: keyMap[event.code], pressed: false });
-  }
-});
+};
+function renderKeyBindings() {
+  const list = $('key-bindings');
+  const bindings = keyboard.bindings;
+  list.replaceChildren(...actions.map(({ id, label, group }) => {
+    const row = document.createElement('li');
+    row.className = group;
+    const name = document.createElement('span');
+    name.textContent = label;
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.dataset.action = id;
+    key.textContent = keyLabel(bindings[id]);
+    key.setAttribute('aria-label', `${label}: ${keyLabel(bindings[id])}. Press to change.`);
+    key.onclick = () => keyboard.capture(id);
+    row.append(name, key);
+    return row;
+  }));
+}
+renderKeyBindings();
+$('reset-keys').onclick = () => keyboard.reset();
 
 async function initialize() {
   $('disc').disabled = $('bios').disabled = true;
@@ -261,12 +300,17 @@ async function initialize() {
   const simd = WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,22,1,20,0,253,12,...Array(16).fill(0),11]));
   $('simd').textContent = simd ? 'Supported' : 'Unavailable';
   if (!simd) throw new Error('This browser does not support WebAssembly SIMD.');
-  startInput(id => { $('gamepad').textContent = id || 'Connect a gamepad and press a button.'; });
+  startInput(id => { $('gamepad').textContent = id ? `Gamepad detected (${id}). Gamepad play is not supported yet; use the keyboard.` : 'Gamepad play is not supported yet.'; });
 
   const canvas = $('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   backend = new Backend();
-  backend.onFrame = ({ width, height, seq, pixels, metrics }) => {
+  // Frames finish at uneven wall-clock times while emulation runs below full speed. Keep a
+  // short queue and present on display refresh at the average arrival interval, so motion
+  // is evenly spaced; this costs at most about one frame of latency.
+  const frames = [];
+  let interval = 0, lastArrival = 0, lastPresent = 0;
+  const present = ({ width, height, pixels }) => {
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
@@ -280,17 +324,44 @@ async function initialize() {
       }
       if (visible > 1000) {
         waitingForVideo = false;
+        updateLimiter();
         hideLoadbar();
         status('Game running.');
       }
     }
-    if (metrics) updateMetrics(metrics);
+  };
+  const tick = now => {
+    // Present when the interval has elapsed, or immediately if the queue is backing up.
+    if (frames.length && (now - lastPresent >= interval * 0.9 || frames.length > 2)) {
+      lastPresent = now;
+      present(frames.shift());
+    }
+    if (frames.length) requestAnimationFrame(tick);
+  };
+  backend.onFrame = frame => {
+    const gap = frame.time - lastArrival;
+    lastArrival = frame.time;
+    // Ignore long gaps (pauses, loading) when estimating the steady frame interval.
+    if (gap > 0 && gap < 250) interval = interval ? interval * 0.9 + gap * 0.1 : gap;
+    if (frames.push(frame) > 3) frames.shift();
+    if (frames.length === 1) requestAnimationFrame(tick);
+    if (frame.metrics) updateMetrics(frame.metrics);
   };
   backend.onMetrics = ({ metrics }) => {
     if (metrics) updateMetrics(metrics);
   };
 
   const manifest = await backend.request('init');
+  // A cached page talking to a newer worker (or the reverse) would drop controller bindings.
+  if (manifest.workerProtocol !== WORKER_PROTOCOL) {
+    if (!sessionStorage.getItem('pcsx2-protocol-reload')) {
+      sessionStorage.setItem('pcsx2-protocol-reload', '1');
+      location.reload();
+      return;
+    }
+    throw new Error('The page and its emulator worker are different versions. Clear the site cache and reload.');
+  }
+  sessionStorage.removeItem('pcsx2-protocol-reload');
   ready = true;
   $('disc').disabled = $('bios').disabled = false;
   $('validate').disabled = false;

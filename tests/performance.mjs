@@ -66,6 +66,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('#bios').disabled);
   await (await page.$('#bios')).uploadFile(process.env.PS2_BIOS);
   await page.waitForFunction(() => document.querySelector('#status').textContent.startsWith('BIOS mounted.'), { timeout: 60000 });
+  if (await page.$eval('#cache', e => e.checked)) await page.click('#cache');
   await (await page.$('#disc')).uploadFile(process.env.GAME_ISO);
   await page.waitForFunction(() => !document.querySelector('#play').disabled, { timeout: 60000 });
   const bootTime = performance.now();
@@ -103,7 +104,7 @@ try {
   }
   await (await page.$('#canvas')).screenshot({ path: `${out}/last-frame.png` });
   const manifest = JSON.parse(await readFile('web/runtime/manifest.json', 'utf8'));
-  const report = { browser: await browser.version(), hardware: { cpu: cpus()[0].model, logicalCpus: cpus().length, platform: platform(), arch: arch() }, firstVisibleSeconds, visibleHashes: hashes.size, errors, vmHash: manifest.files['pcsx2-vm.wasm'].sha256, settings: { renderer: 'software', EECycleSkip: 2, EECycleRate: -2, WaitLoop: true, vu1Instant: true, frameLimit: false, extraGSThreads: 0 }, workload: 'Beverly Hills Cop (Europe), unskipped publisher intro', samples };
+  const report = { browser: await browser.version(), hardware: { cpu: cpus()[0].model, logicalCpus: cpus().length, platform: platform(), arch: arch() }, firstVisibleSeconds, visibleHashes: hashes.size, errors, vmHash: manifest.files['pcsx2-vm.wasm'].sha256, settings: { renderer: 'software', EECycleSkip: 2, EECycleRate: -2, WaitLoop: true, vu1Instant: true, frameLimit: 'unlimited until first picture, then nominal', extraGSThreads: 0 }, workload: 'Beverly Hills Cop (Europe), unskipped publisher intro', samples };
   await writeFile(`${out}/report.json`, JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify({ firstVisibleSeconds, visibleHashes: hashes.size, profileWorkers: n, errors }));
   assert.ok(firstVisibleSeconds !== null && hashes.size >= 3, 'Require changing visible frames');
