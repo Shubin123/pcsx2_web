@@ -123,3 +123,13 @@ with readable Wasm names need a backend built with `PCSX2_WEB_PROFILE=ON` and
 synced first. Compare the same visible guest scene, not black startup frames
 or canvas refresh counts. `node scripts/summarize-profile.mjs <directory>`
 reports the 18–20 guest-second intro window.
+
+The public runtime includes a [matching backend source archive](web/runtime/pcsx2-source.tar.gz),
+with its revision and checksum in the runtime manifest. This contains the
+committed fork source, build scripts, and dependency/license notices; it excludes
+Git history, local BIOS/game files, build outputs, and profiling artifacts.
+For a release, commit the backend changes, rebuild, then run
+`npm run sync -- --with-source` from this frontend. Source packaging requires
+a clean backend at the exact manifest revision. When building from the archive,
+initialize a local Git repository before running its `tools/web/build.sh` so
+revision metadata can be generated.

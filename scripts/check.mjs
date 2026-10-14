@@ -15,4 +15,10 @@ for (const [name, meta] of Object.entries(manifest.files)) {
   const bytes = await readFile(new URL(name, runtime));
   if (bytes.length !== meta.bytes || createHash('sha256').update(bytes).digest('hex') !== meta.sha256) throw new Error(`Artifact mismatch ${name}`);
 }
+if (manifest.sourceArchive) {
+  const meta = manifest.sourceArchive;
+  if (meta.file !== 'pcsx2-source.tar.gz' || meta.revision !== manifest.backendRevision) throw new Error('Source archive revision mismatch');
+  const bytes = await readFile(new URL(meta.file, runtime));
+  if (bytes.length !== meta.bytes || createHash('sha256').update(bytes).digest('hex') !== meta.sha256) throw new Error('Source archive checksum mismatch');
+}
 console.log('PASS: JavaScript syntax and backend artifact checksums');

@@ -43,5 +43,11 @@
       "bytes": 5558568,
       "sha256": "81cbe46f466e5ac504acbf9a93fd4a92789e53ab64854c889078989a7611800f"
     }
+  },
+  "sourceArchive": {
+    "file": "pcsx2-source.tar.gz",
+    "revision": "bf383cb6e287a11102fc4ff43a77b8f186014e48",
+    "bytes": 22695657,
+    "sha256": "c5caef199f13f63cc794e5b860e867f378626980c352c6414d09f63d719463c8"
   }
 }
