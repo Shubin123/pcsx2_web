@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0+
 import { cacheStream } from './storage.js';
+import { fetchArchiveDownload } from './archive-download.js';
 export const ARCHIVE_ID = 'playstation-2-games-iso';
 const base = `https://archive.org/download/${ARCHIVE_ID}/`;
 export function catalogFiles(metadata) {
@@ -46,7 +47,7 @@ export function startArchive(onReady, busy, onBusy = async () => {}) {
       const { usage = 0, quota } = await navigator.storage.estimate();
       if (quota && game.size > quota - usage) throw new Error('Not enough browser storage. Remove cached games first.');
       $('archive-status').textContent = `Connecting: ${game.name}`;
-      const response = await fetch(game.url, { signal });
+      const response = await fetchArchiveDownload(game, signal);
       if (!response.ok || !response.body) throw new Error(`Download HTTP ${response.status}. The archive may require sign-in or be unavailable.`);
       const meta = await cacheStream(response.body, game.name, game.size, 'disc', progress => {
         $('archive-progress').value = progress;
