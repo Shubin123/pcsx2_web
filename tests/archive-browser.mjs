@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import puppeteer from 'puppeteer-core';
 import { createServer } from '../scripts/server.mjs';
 
-let mode = 'complete', upstreamCalls = 0, upstreamCanceled = false;
+let mode = 'complete', upstreamCalls = 0, upstreamCanceled = false, staticHost = false;
 const fixture = Uint8Array.from({length: 64}, (_, i) => i);
 const server = createServer({fetchArchive: async (_url, {signal}) => {
   upstreamCalls++;
@@ -30,6 +30,7 @@ try {
       headers: {'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp'},
       body: '<!doctype html><title>Generated archive regression</title><body></body>'});
     if (url === 'https://archive.org/metadata/playstation-2-games-iso') return request.respond({status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*'}, body: JSON.stringify({files: [{name: 'Generated fixture (USA).iso', size: '64'}]})});
+    if (staticHost && url.startsWith(`${base}/archive-download?`)) return request.respond({status: 404, body: 'Not found'});
     if (!url.startsWith(base + '/')) return request.abort('failed');
     request.continue();
   });
@@ -65,6 +66,13 @@ try {
   assert.equal(await page.$eval('#disc', el => el.disabled), false);
   assert.equal(await page.$eval('#archive-list button', el => el.disabled), false);
 
+  staticHost = true;
+  await click(); await settled();
+  assert.match(await page.$eval('#archive-status', el => el.textContent), /this host has no download relay.*Open the game title link/);
+  assert.deepEqual(await entries(), []);
+  assert.equal(await page.$eval('#disc', el => el.disabled), false);
+  staticHost = false;
+
   mode = 'waiting';
   await click();
   await page.waitForFunction(() => !document.querySelector('#archive-cancel').hidden);
@@ -81,7 +89,7 @@ try {
   mode = 'complete';
   await click();
   await page.waitForFunction(() => document.querySelector('#archive-status').textContent.includes('cached and mounted'));
-  assert.deepEqual(await page.evaluate(() => window.busyEvents), [true, false, true, false, true, false, true, false]);
+  assert.deepEqual(await page.evaluate(() => window.busyEvents), [true, false, true, false, true, false, true, false, true, false]);
   assert.deepEqual(errors, []);
   console.log('PASS: blocked direct fetch → local relay → generated OPFS cache; incomplete cleanup, cancellation, controls restored, retry succeeds. No remote downloads.');
 } finally {
