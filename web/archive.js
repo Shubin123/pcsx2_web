@@ -18,10 +18,15 @@ export function startArchive(onReady, busy, onBusy = async () => {}) {
     $('archive-page').textContent = `${filtered.length} games · Page ${page+1} of ${pages}`;
     $('archive-prev').disabled = page === 0; $('archive-next').disabled = page >= pages-1;
     $('archive-list').replaceChildren(...filtered.slice(page*20, page*20+20).map(game => {
-      const row = document.createElement('li'), title = document.createElement('span'), size = document.createElement('small'), button = document.createElement('button');
+      const row = document.createElement('li'), title = document.createElement('span'), size = document.createElement('small'), actions = document.createElement('div'), direct = document.createElement('button'), button = document.createElement('button');
       const link = document.createElement('a'); link.textContent = game.name; link.href = game.url; link.target = '_blank'; link.rel = 'noopener'; link.title = 'Open direct download (then import the downloaded file)'; title.append(link); size.textContent = `${(game.size/1073741824).toFixed(2)} GiB · ${game.region}`; title.append(size);
-      button.textContent = 'Download & cache'; button.disabled = !!controller;
-      button.onclick = () => download(game); row.append(title, button); return row;
+      actions.className = 'archive-actions';
+      direct.textContent = 'Direct download'; direct.dataset.action = 'direct';
+      direct.title = 'Download to your device, then import with Choose game';
+      direct.onclick = () => window.open(game.url, '_blank', 'noopener');
+      button.textContent = 'Cache in browser'; button.dataset.action = 'cache'; button.disabled = !!controller;
+      button.title = 'Fetch into browser storage and mount the cached game';
+      button.onclick = () => download(game); actions.append(direct, button); row.append(title, actions); return row;
     }));
   }
   async function refresh() {
@@ -55,7 +60,7 @@ export function startArchive(onReady, busy, onBusy = async () => {}) {
         $('archive-status').textContent = `${game.name} · ${(progress*100).toFixed(1)}% · ${(progress*game.size/1048576/elapsed).toFixed(1)} MiB/s`;
       }, signal);
       await onReady(meta); $('archive-status').textContent = `${game.name} cached and mounted.`;
-    } catch(error) { $('archive-status').textContent = error.name === 'AbortError' ? 'Download canceled; partial cache removed.' : `${error.message} Open the game title link to download directly, then choose the local file.`; }
+    } catch(error) { $('archive-status').textContent = error.name === 'AbortError' ? 'Download canceled; partial cache removed.' : `Could not cache this game: ${error.message} Use Direct download, then Choose game to import the saved file with Save in browser storage enabled.`; }
     finally { controller = null; await onBusy(false); inputs.forEach(input => { input.disabled = false; }); $('archive-progress').hidden = $('archive-cancel').hidden = true; render(); }
   }
   $('archive-cancel').onclick = () => controller?.abort();

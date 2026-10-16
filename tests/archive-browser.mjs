@@ -41,13 +41,26 @@ try {
     const {startArchive} = await import('./archive.js');
     startArchive(meta => {window.mounted = meta;}, () => false, value => {window.busyEvents.push(value);});
   });
-  await page.waitForSelector('#archive-list button');
-  const click = () => page.click('#archive-list button');
+  await page.waitForSelector('#archive-list button[data-action=cache]');
+  const click = () => page.click('#archive-list button[data-action=cache]');
   const settled = () => page.waitForFunction(() => document.querySelector('#archive-cancel').hidden);
   const entries = () => page.evaluate(async () => {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('pcsx2-library', {create: true});
     const names = []; for await (const name of dir.keys()) names.push(name); return names;
   });
+
+  assert.deepEqual(await page.$$eval('#archive-list button', buttons => buttons.map(button => button.textContent)), ['Direct download', 'Cache in browser']);
+  // Stub native navigation as well as fetch: clicking Direct download must
+  // neither fetch a remote file nor start caching/mounting in this page.
+  await page.evaluate(() => { window.directDownloads = []; window.open = (...args) => { window.directDownloads.push(args); return null; }; });
+  await page.click('#archive-list button[data-action=direct]');
+  assert.deepEqual(await page.evaluate(() => window.directDownloads), [[
+    'https://archive.org/download/playstation-2-games-iso/Generated%20fixture%20(USA).iso', '_blank', 'noopener'
+  ]]);
+  assert.equal(upstreamCalls, 0);
+  assert.deepEqual(await entries(), []);
+  assert.deepEqual(await page.evaluate(() => window.busyEvents), []);
+  assert.equal(await page.evaluate(() => window.mounted), undefined);
 
   await click();
   await page.waitForFunction(() => document.querySelector('#archive-status').textContent.includes('cached and mounted'));
@@ -64,13 +77,15 @@ try {
   assert.deepEqual(await entries(), []);
   assert.equal(await page.evaluate(() => window.mounted), null);
   assert.equal(await page.$eval('#disc', el => el.disabled), false);
-  assert.equal(await page.$eval('#archive-list button', el => el.disabled), false);
+  assert.equal(await page.$eval('#archive-list button[data-action=cache]', el => el.disabled), false);
 
   staticHost = true;
   await click(); await settled();
-  assert.match(await page.$eval('#archive-status', el => el.textContent), /this host has no download relay.*Open the game title link/);
+  assert.match(await page.$eval('#archive-status', el => el.textContent), /this host has no download relay.*Use Direct download, then Choose game/);
   assert.deepEqual(await entries(), []);
   assert.equal(await page.$eval('#disc', el => el.disabled), false);
+  await page.click('#archive-list button[data-action=direct]');
+  assert.equal(await page.evaluate(() => window.directDownloads.length), 2);
   staticHost = false;
 
   mode = 'waiting';
@@ -79,6 +94,8 @@ try {
   // Wait until the mocked upstream has started before canceling it.
   for (let i = 0; upstreamCalls < 3 && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(upstreamCalls, 3);
+  assert.equal(await page.$eval('#archive-list button[data-action=cache]', el => el.disabled), true);
+  assert.equal(await page.$eval('#archive-list button[data-action=direct]', el => el.disabled), false);
   await page.click('#archive-cancel'); await settled();
   assert.match(await page.$eval('#archive-status', el => el.textContent), /Download canceled/);
   for (let i = 0; !upstreamCanceled && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 10));

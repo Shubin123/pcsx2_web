@@ -29,9 +29,9 @@ try {
   assert.ok((await page.$eval('#bios-name', el => el.textContent)).includes('SCPH-70004 EUR v2.00'));
   assert.ok(await page.$('#loadbar'));
   assert.ok(await page.$('#loadbar-fill'));
-  await page.waitForSelector('#archive-list li button');
+  await page.waitForSelector('#archive-list li button[data-action=cache]');
   assert.equal(await page.$$eval('#archive-list li', rows => rows.length), 2);
-  await page.click('#archive-list li button');
+  await page.click('#archive-list li button[data-action=cache]');
   await page.waitForFunction(() => document.getElementById('archive-status').textContent.includes('cached and mounted'));
   assert.ok(await page.$eval('#library', e => e.textContent.includes('Archive fixture')));
   await page.click('#library li button:last-child');

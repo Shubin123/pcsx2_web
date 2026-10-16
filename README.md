@@ -16,7 +16,12 @@ The Internet Archive catalog at https://archive.org/download/playstation-2-games
 supports title search, region filters, sorting, pagination, refresh, and streamed
 ISO/BIN/ELF downloads into OPFS with cancellation, quota checks, byte-length
 verification and cached mounting. The catalog is fetched live; archive availability
-and browser CORS permissions can affect downloads. The local `npm start` server
+and browser CORS permissions can affect downloads. Each row has separate
+**Direct download** and **Cache in browser** buttons. Direct download opens the
+file in a new tab for a normal browser download, without fetching or caching it
+in the app. Cache in browser streams the file into browser storage and mounts it.
+If caching is blocked, use Direct download, then Choose game with Save in browser
+storage enabled to import and cache the saved file. The local `npm start` server
 provides a same-origin streaming fallback when a direct fetch fails. The relay
 only accesses this fixed Archive collection and permits redirects to HTTPS
 Archive hosts; it does not forward browser cookies or credentials. GitHub Pages

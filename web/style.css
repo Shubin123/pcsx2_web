@@ -209,3 +209,6 @@
 #btn-load-game:hover:not(:disabled){background:#ff5270}
 #btn-load-game:disabled{opacity:.4;cursor:not-allowed}
 
+
+.archive-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:280px}
+@media(max-width:600px){#archive-list li{grid-template-columns:minmax(0,1fr)}.archive-actions{justify-content:flex-start;max-width:100%}}
