@@ -212,3 +212,4 @@
 
 .archive-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:280px}
 @media(max-width:600px){#archive-list li{grid-template-columns:minmax(0,1fr)}.archive-actions{justify-content:flex-start;max-width:100%}}
+.library-search{display:grid;gap:6px;font-size:13px}.library-search input{width:100%;min-width:0}#library{max-height:320px;overflow:auto}#shared-library{scroll-margin-top:20px}

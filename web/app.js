@@ -54,12 +54,19 @@ function hideLoadbar() {
 }
 
 async function refreshLibrary() {
-  const games = await listGames();
+  const games = (await listGames()).filter(meta => meta.kind === 'disc');
+  const query = $('library-search').value.trim().toLowerCase();
+  const matches = games.filter(meta => meta.name.toLowerCase().includes(query));
+  $('library-status').textContent = !games.length
+    ? 'No saved games yet. Choose a game file or browse the shared library to cache one.'
+    : !matches.length ? 'No saved games match your search.'
+    : `${matches.length} of ${games.length} saved games. Select a title to load it without downloading again.`;
   $('library').replaceChildren();
-  for (const meta of games.filter(meta => meta.kind === 'disc')) {
+  for (const meta of matches) {
     const row = document.createElement('li');
     const load = document.createElement('button');
     load.textContent = `${meta.name} · ${(meta.size / 1048576).toFixed(1)} MiB`;
+    load.setAttribute('aria-label', `Load ${meta.name} from browser storage`);
     load.disabled = !ready || importing || downloading;
     load.onclick = () => loadFile(meta).catch(report);
     const remove = document.createElement('button');
@@ -72,9 +79,14 @@ async function refreshLibrary() {
 }
 
 async function loadFile(meta) {
-  const file = await getCachedFile(meta);
-  await mountFile(file, meta.kind);
+  showLoadbar(meta.kind === 'bios' ? 'Loading saved BIOS…' : 'Loading saved game…', 0, meta.name);
+  try {
+    const file = await getCachedFile(meta);
+    await mountFile(file, meta.kind);
+  } finally { hideLoadbar(); }
 }
+
+$('library-search').addEventListener('input', () => refreshLibrary().catch(report));
 
 async function mountFile(file, kind) {
   const result = await backend.request('mount', { file, kind });
@@ -111,7 +123,11 @@ async function importFile(file, kind) {
     await refreshLibrary();
     status(cache ? `Saving ${file.name}…` : `Mounting ${file.name}…`);
     if (cache) {
-      const meta = await cacheFile(file, kind, progress => { $('progress').value = progress; }, importController.signal);
+      showLoadbar('Saving to library…', 0, file.name);
+      const meta = await cacheFile(file, kind, progress => {
+        $('progress').value = progress;
+        showLoadbar('Saving to library…', progress, file.name);
+      }, importController.signal);
       await loadFile(meta);
     } else await mountFile(file, kind);
   } catch (error) {
@@ -121,6 +137,7 @@ async function importFile(file, kind) {
     importing = false;
     importController = null;
     $('progress').hidden = $('cancel').hidden = true;
+    hideLoadbar();
     $('disc').disabled = $('bios').disabled = !ready;
     await refreshLibrary();
   }
