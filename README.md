@@ -153,6 +153,15 @@ slider during gameplay; click the game to resume controller input.
 persistence, reset, layout integration, and mobile overflow. Actual ICO gameplay
 measurements and their hardware/settings are recorded in the backend `WEB_PORT.md`.
 
+The updated backend restores normal EE timing specifically for ICO (Europe),
+SCES-50760 / 5C991F4E. Wasm SIMD VU1 arithmetic preserves the original rounding
+and flags while avoiding the previous underclock's approximately 12.5 FPS
+cadence. The tested opening hall runs at roughly 25 rendered FPS and PAL timing
+on Apple M4 / Chrome 155. Higher widget targets remain limited by available
+emulation throughput (about 1.1× in the measured scene); actual 2×/3× gameplay
+was not reached. Other games retain their existing timing settings.
+
+
 Startup runs unthrottled until the first visible picture, then uses the selected
 speed target;
 throttling only maps guest time to wall time. The worker downloads and compiles
@@ -161,7 +170,7 @@ and the canvas scales them on the GPU; a short queue presents them at the
 average arrival interval on display refresh, smoothing uneven pacing below full
 speed at a cost of about one frame of latency.
 
-On the local Apple M1 / Chrome 155 intro benchmark, first picture takes 13.1 s (was
+On the older Beverly Hills Cop (Europe) intro benchmark (Apple M1 / Chrome 155), first picture takes 13.1 s (was
 26.2 s) and the 18–20 guest-second window runs at 0.32x guest speed / 16.0 vsync Hz (was
 0.29x / 14.4 Hz). Full PAL speed is not reached.
 
