@@ -4,10 +4,12 @@ import { cacheFile, getCachedFile, listGames, removeCachedFile } from './storage
 import { startInput } from './input.js';
 import { startArchive } from './archive.js';
 import { Keyboard, actions, keyLabel } from './keyboard.js';
+import { initSaves } from './saves.js';
 
 const $ = id => document.getElementById(id);
 const WORKER_PROTOCOL = 2; // Must match core-worker.js.
 let backend;
+let savesWidget;
 let importController;
 let importing = false;
 let downloading = false;
@@ -128,6 +130,7 @@ async function mountFile(file, kind) {
     $('selected').textContent = `${result.name} · ${(result.size / 1048576).toFixed(1)} MiB`;
     $('btn-load-game').disabled = false;
     $('play').disabled = false;
+    savesWidget?.setActiveGame({ name: result.name, size: result.size, serial: result.name });
   }
   status(`${kind === 'bios' ? 'BIOS' : 'Game'} mounted. Header and end-of-file reads verified.`);
   return result;
@@ -206,12 +209,15 @@ async function loadAndRunGame(meta) {
     showLoadbar('Booting PlayStation 2…', 0.88, 'Executing guest system startup sequence…');
     waitingForVideo = true;
     backend.send('bindings', { lines: keyboard.settingsLines() });
-    await backend.request('boot', { fastStart: true, mtvu: $('mtvu').checked, extraThreads: Number($('threads')?.value ?? 0), speed: speedTarget() });
+    const memcardFiles = await savesWidget?.getBootMemcardFiles();
+    await backend.request('boot', { fastStart: true, mtvu: $('mtvu').checked, extraThreads: Number($('threads')?.value ?? 0), speed: speedTarget(), memcardFiles });
     if (waitingForVideo) showLoadbar('Starting game…', 0.88, 'Waiting for the first visible game frame. Interpreter startup can take several minutes.');
 
     $('empty').hidden = true;
     $('pause').disabled = false;
     $('stop').disabled = false;
+    const btnSaveState = $('btn-save-state');
+    if (btnSaveState) btnSaveState.disabled = false;
     $('fps').textContent = 'Starting…';
     isRunning = true;
     keyboard.session = true;
@@ -250,7 +256,12 @@ async function stopGame() {
   hideLoadbar();
   keyboard.releaseAll();
   keyboard.session = keyboard.enabled = false;
-  await backend.request('stop');
+  const btnSaveState = $('btn-save-state');
+  if (btnSaveState) btnSaveState.disabled = true;
+  const stopResult = await backend.request('stop');
+  if (stopResult?.memcardFiles) {
+    await savesWidget?.persistMemcard(stopResult.memcardFiles);
+  }
   isRunning = false;
   isPaused = false;
   $('empty').hidden = false;
@@ -427,6 +438,27 @@ async function initialize() {
     ? 'PCSX2 WebAssembly core is ready. Select a game to load & run.'
     : 'The graphics components are ready. PS2 game execution is still being ported.';
   status('Backend initialized. Ready to load PlayStation 2 games.');
+
+  try {
+    savesWidget = (await initSaves(backend, {
+      onLaunchGame: async () => {
+        if (!hasGame) {
+          const games = (await listGames()).filter(g => g.kind === 'disc');
+          const icoGame = games.find(g => g.name.toLowerCase().includes('ico') || g.name.includes('50760')) || games[0];
+          if (icoGame) {
+            await loadFile(icoGame);
+          } else {
+            $('disc').click();
+            return;
+          }
+        }
+        await loadAndRunGame();
+      }
+    })).widget;
+  } catch (err) {
+    report(err);
+  }
+
   startArchive(async meta => { await loadFile(meta); await refreshLibrary(); }, () => importing || launching || isRunning, async active => { downloading = active; await refreshLibrary(); });
   await refreshLibrary();
 

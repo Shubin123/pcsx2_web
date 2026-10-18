@@ -217,3 +217,68 @@
 .speed-presets{display:flex;gap:8px}.speed-presets button{flex:1;text-align:center}.speed-presets button[aria-pressed="true"]{background:#e94560;border-color:#e94560}.speed-control output{font-variant-numeric:tabular-nums;color:#e4eaf6}#speed-actual{font-variant-numeric:tabular-nums;color:#89b4fa}#speed-help{font-size:12px;color:#aabbd1}
 
 .controls-panel select{width:100%;min-width:0}
+
+/* ── Saves & Save States Widget ─────────────────────────────────────── */
+.save-quick-load {
+    background: linear-gradient(135deg, rgba(233, 69, 96, 0.18), rgba(15, 52, 96, 0.4));
+    border: 1px solid rgba(233, 69, 96, 0.4);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.save-quick-info { display: flex; flex-direction: column; gap: 2px; }
+.save-quick-title { color: #f0a2af; font-size: 0.82rem; font-weight: 700; }
+.save-quick-desc { color: #8da4c4; font-size: 0.72rem; }
+.save-toolbar {
+    display: grid;
+    grid-template-columns: 86px 1fr 1fr;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.save-toolbar select { margin-bottom: 0; padding: 6px; font-size: 0.76rem; }
+.save-toolbar .btn { margin: 0; padding: 6px 8px; font-size: 0.75rem; }
+.btn-success { background: #2e7d32; border-color: #388e3c; color: #fff; }
+.btn-success:hover:not(:disabled) { background: #388e3c; }
+.btn-danger { background: #71313d; border-color: #8c3b4a; color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #8c3b4a; }
+.save-file-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.save-file-actions .file-button { margin: 0; padding: 6px 8px; font-size: 0.72rem; text-align: center; }
+.save-file-actions .btn { margin: 0; padding: 6px 8px; font-size: 0.72rem; }
+.save-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+.save-entry {
+    background: #0d1730;
+    border: 1px solid #253d69;
+    border-radius: 5px;
+    padding: 7px;
+}
+.save-entry-title { font-size: 0.76rem; font-weight: 700; color: #eee; }
+.save-entry-meta {
+    color: #8995aa;
+    font-size: 0.67rem;
+    line-height: 1.4;
+    margin: 3px 0 6px;
+}
+.save-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+}
+.save-actions .btn { padding: 4px 6px; margin: 0; font-size: 0.7rem; }
+.save-drop-active { outline: 2px dashed #e94560; outline-offset: -4px; }
+

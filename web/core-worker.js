@@ -200,6 +200,28 @@ if (globalThis.name === 'em-pthread') {
     // sees a picture. Throttling only maps guest time to wall time.
     vmModule._pcsx2_vm_set_limiter(data?.fastStart ? 3 : 0);
 
+    try { vmModule.FS.mkdir('/pcsx2'); } catch (_) {}
+    try { vmModule.FS.mkdir('/pcsx2/memcards'); } catch (_) {}
+    try { vmModule.FS.mkdir('/pcsx2/memcards/Mcd001.ps2'); } catch (_) {}
+    try { vmModule.FS.mkdir('/pcsx2/sstates'); } catch (_) {}
+
+    // Populate memory card folder from browser storage
+    if (data?.memcardFiles && Array.isArray(data.memcardFiles)) {
+      for (const file of data.memcardFiles) {
+        const fullPath = `/pcsx2/memcards/Mcd001.ps2/${file.path}`;
+        const dir = fullPath.slice(0, fullPath.lastIndexOf('/'));
+        try { vmModule.FS.mkdirTree(dir); } catch (_) {}
+        vmModule.FS.writeFile(fullPath, new Uint8Array(file.data));
+      }
+    }
+
+    // Populate save states from browser storage
+    if (data?.stateFiles && Array.isArray(data.stateFiles)) {
+      for (const state of data.stateFiles) {
+        vmModule.FS.writeFile(`/pcsx2/sstates/${state.name}`, new Uint8Array(state.data));
+      }
+    }
+
     const pathPtr = vmModule.stringToNewUTF8('/disc/image');
     const bootOk = vmModule._pcsx2_vm_boot(pathPtr);
     vmModule._free(pathPtr);
@@ -214,10 +236,88 @@ if (globalThis.name === 'em-pthread') {
     if (vmModule) vmModule._pcsx2_vm_set_paused(paused ? 1 : 0);
   }
 
+  function syncMemcard() {
+    if (!vmModule) return [];
+    const root = '/pcsx2/memcards/Mcd001.ps2';
+    const files = [];
+    function scan(dir) {
+      let entries = [];
+      try { entries = vmModule.FS.readdir(dir); } catch (_) { return; }
+      for (const entry of entries) {
+        if (entry === '.' || entry === '..') continue;
+        const full = `${dir}/${entry}`;
+        try {
+          const stat = vmModule.FS.stat(full);
+          if (vmModule.FS.isDir(stat.mode)) {
+            scan(full);
+          } else if (vmModule.FS.isFile(stat.mode)) {
+            const rel = full.slice(root.length + 1);
+            const data = vmModule.FS.readFile(full);
+            files.push({ path: rel, data: Array.from(data), size: data.length });
+          }
+        } catch (_) {}
+      }
+    }
+    scan(root);
+    return files;
+  }
+
   function stop() {
     running = false;
     if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
+    const memcardFiles = syncMemcard();
     if (vmModule) vmModule._pcsx2_vm_stop();
+    return memcardFiles;
+  }
+
+  async function saveState(slot) {
+    if (!vmModule) throw new Error('VM not running');
+    const slotNum = Math.max(1, Math.min(10, Number(slot) || 1));
+    const hotkeySetting = `Hotkeys\tSaveStateToSlot${slotNum}\tKeyboard/F5`;
+    applySettings(hotkeySetting);
+    sendKey('F5', true);
+    sendKey('F5', false);
+
+    const slotSuffix = `.${String(slotNum).padStart(2, '0')}.p2s`;
+    let foundName = null;
+    let bytes = null;
+    const deadline = performance.now() + 6000;
+    while (performance.now() < deadline) {
+      try {
+        const names = vmModule.FS.readdir('/pcsx2/sstates');
+        for (const name of names) {
+          if (name.endsWith(slotSuffix)) {
+            const data = vmModule.FS.readFile(`/pcsx2/sstates/${name}`);
+            if (data.length >= 22) {
+              const end = data.length - 22;
+              if (data[end] === 0x50 && data[end + 1] === 0x4b && data[end + 2] === 0x05 && data[end + 3] === 0x06) {
+                foundName = name;
+                bytes = data;
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+      if (foundName) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (!foundName || !bytes) throw new Error(`Timed out saving state slot ${slotNum}`);
+    return { slot: slotNum, name: foundName, bytes: Array.from(bytes) };
+  }
+
+  async function loadState(slot, stateData) {
+    if (!vmModule) throw new Error('VM not running');
+    const slotNum = Math.max(1, Math.min(10, Number(slot) || 1));
+    if (stateData?.name && stateData?.bytes) {
+      try { vmModule.FS.mkdir('/pcsx2/sstates'); } catch (_) {}
+      vmModule.FS.writeFile(`/pcsx2/sstates/${stateData.name}`, new Uint8Array(stateData.bytes));
+    }
+    const hotkeySetting = `Hotkeys\tLoadStateFromSlot${slotNum}\tKeyboard/F7`;
+    applySettings(hotkeySetting);
+    sendKey('F7', true);
+    sendKey('F7', false);
+    return { success: true, slot: slotNum };
   }
 
   /** Controller 1 inputs as the emulated DualShock 2 holds them (PadDualshock2 order). */
@@ -269,8 +369,11 @@ if (globalThis.name === 'em-pthread') {
         else if (action === 'validate') result = validate();
         else if (action === 'boot') result = await boot(data);
         else if (action === 'pause') { pause(data.paused); result = { paused: data.paused }; }
-        else if (action === 'stop') { stop(); result = { stopped: true }; }
+        else if (action === 'stop') { const memcardFiles = stop(); result = { stopped: true, memcardFiles }; }
         else if (action === 'padState') result = padState();
+        else if (action === 'saveState') result = await saveState(data.slot);
+        else if (action === 'loadState') result = await loadState(data.slot, data.stateData);
+        else if (action === 'syncMemcard') result = { memcardFiles: syncMemcard() };
         else throw new Error(`Unsupported action: ${action}`);
         self.postMessage({ id, result });
       } catch (error) { self.postMessage({ id, error: error.message }); }
