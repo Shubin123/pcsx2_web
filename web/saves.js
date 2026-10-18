@@ -356,8 +356,24 @@ export class SavesWidget {
         const serial = this.#activeGame?.serial || 'GENERIC';
         await this.#store.putState(serial, this.#selectedSlot, file.name, file.name, new Uint8Array(buf));
         this.setStatus(`Imported save state into Slot ${this.#selectedSlot}.`);
+      } else if (ext === 'json') {
+        const text = new TextDecoder().decode(buf);
+        const bundle = JSON.parse(text);
+        if (bundle.files && Array.isArray(bundle.files)) {
+          const imported = bundle.files
+            .filter(f => !f.path.startsWith('TEST/'))
+            .map(f => ({
+              path: f.path,
+              size: f.size,
+              data: Uint8Array.from(atob(f.base64), c => c.charCodeAt(0))
+            }));
+          await this.persistMemcard(imported);
+          this.setStatus(`Imported memory card save: ${bundle.gameTitle || file.name} (${imported.length} files).`);
+        } else {
+          throw new Error('Invalid save file format (expected pcsx2-folder-mcd backup).');
+        }
       } else {
-        throw new Error('Unsupported format. Please select a .PSV save or .p2s save state.');
+        throw new Error('Unsupported format. Please select a .PSV save, .p2s state, or .json backup.');
       }
       await this.refreshUI();
     } catch (err) {
@@ -413,16 +429,30 @@ export class SavesWidget {
   }
 
   async exportMemcard() {
-    const files = this.#memcardFiles;
-    if (!files || !files.length) {
+    const rawFiles = this.#memcardFiles;
+    if (!rawFiles || !rawFiles.length) {
       this.setStatus('Memory Card 1 is currently empty.', true);
       return;
     }
+    const files = rawFiles.filter(f => !f.path.startsWith('TEST/'));
+
+    let gameTitle = this.#activeGame?.name?.replace(/\.[^/.]+$/, '');
+    if (!gameTitle) {
+      for (const f of files) {
+        if (f.path.includes('50760') || f.path.toLowerCase().includes('ico')) {
+          gameTitle = 'Ico (Europe) - Main Gate';
+          break;
+        }
+      }
+    }
+    const filename = `${gameTitle || 'Mcd001'}-save.json`;
+
     // Package files into a simple JSON bundle with base64 data for backup
     const exportBundle = {
       version: 1,
       format: 'pcsx2-folder-mcd',
       cardId: 'Mcd001.ps2',
+      gameTitle: gameTitle || 'PS2 Save',
       exportedAt: new Date().toISOString(),
       files: files.map(f => ({
         path: f.path,
@@ -434,10 +464,10 @@ export class SavesWidget {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Mcd001-backup.json';
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    this.setStatus('Memory Card 1 exported.');
+    this.setStatus(`Memory Card 1 exported as ${filename}.`);
   }
 
   async refreshUI() {

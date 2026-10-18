@@ -155,16 +155,36 @@ try {
   // 6. Test Export Memory Card
   await page.evaluate(() => {
     window.__exportedBlobs = [];
+    window.__downloadNames = [];
     const origCreate = URL.createObjectURL;
     URL.createObjectURL = (blob) => {
       window.__exportedBlobs.push(blob);
       return origCreate(blob);
+    };
+    HTMLAnchorElement.prototype.click = function() {
+      if (this.download) window.__downloadNames.push(this.download);
+      // Suppress actual browser download to host filesystem
     };
     document.getElementById('btn-export-save').click();
   });
   await page.waitForFunction(() => document.getElementById('save-status').textContent.includes('exported'));
   const exportedCount = await page.evaluate(() => window.__exportedBlobs.length);
   assert.equal(exportedCount, 1);
+  const downloadName = await page.evaluate(() => window.__downloadNames[0]);
+  assert.match(downloadName, /Ico.*save\.json/i);
+
+  // 7. Test re-importing the JSON memory card save backup
+  await page.evaluate(async () => {
+    const blob = window.__exportedBlobs[0];
+    const text = await blob.text();
+    const file = new File([text], window.__downloadNames[0], { type: 'application/json' });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    const input = document.getElementById('input-import-save');
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change'));
+  });
+  await page.waitForFunction(() => document.getElementById('save-status').textContent.includes('Imported memory card save'));
 
   // Screenshots
   await mkdir('artifacts/saves-widget', { recursive: true });
