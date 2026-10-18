@@ -21,8 +21,29 @@ let waitingForVideo = false;
 let fastForward = false;
 const keyboard = new Keyboard();
 
-// Unthrottled while waiting for the first picture or while fast-forward is held.
-const updateLimiter = () => backend?.send('limiter', { mode: waitingForVideo || fastForward ? 3 : 0 });
+// Startup and the held fast-forward hotkey temporarily override the saved target.
+const speedTarget = () => Math.max(1, Math.min(3, Number($('speed').value) || 1));
+const updateLimiter = () => backend?.send('limiter', {
+  mode: waitingForVideo || fastForward ? 3 : speedTarget() > 1 ? 1 : 0,
+  scalar: speedTarget()
+});
+function updateSpeedWidget() {
+  const target = speedTarget();
+  $('speed-value').textContent = `${target}×`;
+  $('speed').setAttribute('aria-valuetext', `${target} times normal speed`);
+  for (const button of document.querySelectorAll('[data-speed]')) {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === target));
+  }
+  updateLimiter();
+}
+$('speed').addEventListener('input', updateSpeedWidget);
+window.addEventListener('pcsx2-preferences-changed', updateSpeedWidget);
+for (const button of document.querySelectorAll('[data-speed]')) button.onclick = () => {
+  $('speed').value = button.dataset.speed;
+  $('speed').dispatchEvent(new Event('input', { bubbles: true }));
+  $('speed').dispatchEvent(new Event('change', { bubbles: true }));
+  if (isRunning) $('screen').focus({ preventScroll: true });
+};
 
 const status = message => {
   $('status').textContent = message;
@@ -185,7 +206,7 @@ async function loadAndRunGame(meta) {
     showLoadbar('Booting PlayStation 2…', 0.88, 'Executing guest system startup sequence…');
     waitingForVideo = true;
     backend.send('bindings', { lines: keyboard.settingsLines() });
-    await backend.request('boot', { fastStart: true, mtvu: $('mtvu').checked, extraThreads: Number($('threads')?.value ?? 0) });
+    await backend.request('boot', { fastStart: true, mtvu: $('mtvu').checked, extraThreads: Number($('threads')?.value ?? 0), speed: speedTarget() });
     if (waitingForVideo) showLoadbar('Starting game…', 0.88, 'Waiting for the first visible game frame. Interpreter startup can take several minutes.');
 
     $('empty').hidden = true;
@@ -219,6 +240,7 @@ async function pauseGame() {
   keyboard.enabled = !isPaused;
   await backend.request('pause', { paused: isPaused });
   $('pause').textContent = isPaused ? 'Resume' : 'Pause';
+  if (isPaused) $('speed-actual').textContent = 'Paused';
   status(isPaused ? 'Emulation paused.' : 'Emulation resumed.');
 }
 
@@ -238,6 +260,7 @@ async function stopGame() {
   $('pause').textContent = 'Pause';
   $('stop').disabled = true;
   $('fps').textContent = 'No game running';
+  $('speed-actual').textContent = 'No game running';
   status('Emulation stopped.');
   await refreshLibrary();
 }
@@ -247,6 +270,7 @@ function updateMetrics(metrics) {
   const fps = metrics[2];
   const speed = metrics[4];
   $('fps').textContent = `${fps.toFixed(1)} FPS · ${speed.toFixed(0)}% speed`;
+  $('speed-actual').textContent = isPaused ? 'Paused' : `Measured: ${(speed / 100).toFixed(2)}×`;
 }
 
 $('disc').onchange = event => { const file = event.target.files[0]; event.target.value = ''; importFile(file, 'disc').catch(report); };

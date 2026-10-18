@@ -141,7 +141,20 @@ TFGH = left and right sticks, P = pause, hold Tab = fast-forward, F11 =
 fullscreen. The page sends these as `Pad1` bindings to the core, which clears
 upstream's desktop hotkeys so they cannot desync the page controls.
 
-Startup runs unthrottled until the first visible picture, then at normal speed;
+The independent **Emulation speed** widget selects 1×, 2×, or 3× through its slider
+or preset buttons. It can be moved, resized, hidden, and restored from the layout
+menu. The selection persists across reloads; resetting settings returns to 1×.
+The measured speed appears below the target. These are emulation timing targets:
+a busy game can run below the selection. Holding Tab temporarily removes the
+limit; releasing it restores the selected target. Arrow keys adjust a focused
+slider during gameplay; click the game to resume controller input.
+
+`npm run test:speed` checks slider/preset commands, keyboard operation, preference
+persistence, reset, layout integration, and mobile overflow. Actual ICO gameplay
+measurements and their hardware/settings are recorded in the backend `WEB_PORT.md`.
+
+Startup runs unthrottled until the first visible picture, then uses the selected
+speed target;
 throttling only maps guest time to wall time. The worker downloads and compiles
 the VM while a game is chosen. Frames arrive at the game's native display size
 and the canvas scales them on the GPU; a short queue presents them at the

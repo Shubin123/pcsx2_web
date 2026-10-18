@@ -16,6 +16,7 @@ if (globalThis.name === 'em-pthread') {
   const WORKER_PROTOCOL = 2; // Must match app.js.
   let vmCompile = null;
   let pendingSettings = '';
+  let turboScalar = 2;
 
   const runtimeUrl = name => new URL(`./runtime/${name}?v=${manifest.files[name]?.sha256 || manifest.backendRevision}`, self.location).href;
 
@@ -189,10 +190,12 @@ if (globalThis.name === 'em-pthread') {
       ['EmuCore/Speedhacks', 'vu1Instant', 'true'],
       ['EmuCore/Speedhacks', 'vuFlagHack', 'true'],
       ['EmuCore/GS', 'extrathreads', String(data?.extraThreads ?? 0)],
+      ['Framerate', 'TurboScalar', String(Math.max(1, Math.min(3, Number(data?.speed) || 1)))],
       // VU1 on its own thread: ~1.7x in 3D gameplay, where VU1 microcode dominates.
       ['EmuCore/Speedhacks', 'vuThread', data?.mtvu === false ? 'false' : 'true']
     ].map(entry => entry.join('\t')).join('\n') + (pendingSettings ? `\n${pendingSettings}` : ''));
     pendingSettings = '';
+    turboScalar = Math.max(1, Math.min(3, Number(data?.speed) || 1));
     // Startup shows black frames while the game loads; run it unthrottled until the page
     // sees a picture. Throttling only maps guest time to wall time.
     vmModule._pcsx2_vm_set_limiter(data?.fastStart ? 3 : 0);
@@ -242,7 +245,14 @@ if (globalThis.name === 'em-pthread') {
       return;
     }
     if (event.data.action === 'limiter') {
-      vmModule?._pcsx2_vm_set_limiter(event.data.data.mode);
+      if (vmModule) {
+        const scalar = Number(event.data.data.scalar);
+        if (Number.isFinite(scalar) && scalar >= 1 && scalar <= 3 && scalar !== turboScalar) {
+          applySettings(`Framerate\tTurboScalar\t${scalar}`);
+          turboScalar = scalar;
+        }
+        vmModule._pcsx2_vm_set_limiter(event.data.data.mode);
+      }
       return;
     }
     if (event.data.action === 'bindings') {

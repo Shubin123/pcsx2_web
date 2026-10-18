@@ -98,15 +98,19 @@ test('paused: controller keys are ignored but hotkeys work', () => {
   dispose();
 });
 
-test('text fields keep their keys; buttons, checkboxes and selects do not', () => {
+test('text fields and range sliders keep their keys; buttons, checkboxes and selects do not', () => {
   assert.equal(isTextEntry(element('INPUT', 'search')), true);
   assert.equal(isTextEntry(element('INPUT', 'text')), true);
+  assert.equal(isTextEntry(element('INPUT', 'range')), true);
   assert.equal(isTextEntry(element('TEXTAREA')), true);
   assert.equal(isTextEntry(element('INPUT', 'checkbox')), false);
   assert.equal(isTextEntry(element('SELECT')), false);
   assert.equal(isTextEntry(element('BUTTON')), false);
   const { pad, press, release, dispose } = setup();
   press('KeyZ', { target: element('INPUT', 'search') });
+  const range = press('ArrowRight', { target: element('INPUT', 'range') });
+  assert.equal(range.defaultPrevented, false);
+  release('ArrowRight', { target: element('INPUT', 'range') });
   press('ArrowUp', { target: element('SELECT') });
   release('ArrowUp', { target: element('SELECT') });
   assert.deepEqual(pad, [['Up', true], ['Up', false]]);

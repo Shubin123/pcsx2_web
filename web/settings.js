@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0+
 const $ = id => document.getElementById(id);
-const defaults = { aspect: '4:3', filter: 'pixelated', cache: true, mtvu: true, threads: '0' };
+const defaults = { aspect: '4:3', filter: 'pixelated', cache: true, mtvu: true, threads: '0', speed: '1' };
 let settings = { ...defaults };
 try { const saved = JSON.parse(localStorage.getItem('pcsx2-preferences')); for (const key of Object.keys(defaults)) if (saved && typeof saved[key] === typeof defaults[key]) settings[key] = saved[key]; } catch {}
 function apply() {
@@ -10,8 +10,11 @@ function apply() {
   if (!['0', '1', '2', '3'].includes(settings.threads)) settings.threads = '0';
   $('aspect').value = settings.aspect; $('filter').value = settings.filter; $('cache').checked = settings.cache; $('mtvu').checked = settings.mtvu;
   if ($('threads')) $('threads').value = settings.threads;
+  if (!['1', '2', '3'].includes(settings.speed)) settings.speed = '1';
+  $('speed').value = settings.speed;
   $('screen').style.setProperty('--screen-aspect', settings.aspect.replace(':', '/'));
   $('canvas').style.imageRendering = settings.filter;
+  window.dispatchEvent(new Event('pcsx2-preferences-changed'));
 }
 for (const key of Object.keys(defaults)) $(key).addEventListener('change', () => {
   settings[key] = typeof defaults[key] === 'boolean' ? $(key).checked : $(key).value;

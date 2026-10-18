@@ -55,9 +55,9 @@ export const defaults = {
 };
 const storageKey = 'pcsx2-keyboard';
 
-// Only fields that take typed text keep keys from the game. Buttons, checkboxes and selects
+// Text fields and range sliders keep their editing keys. Buttons, checkboxes and selects
 // (focused after the user adjusts a setting) must not swallow controller keys mid-game.
-const textTypes = new Set(['text', 'search', 'email', 'number', 'password', 'url', 'tel']);
+const textTypes = new Set(['text', 'search', 'email', 'number', 'password', 'url', 'tel', 'range']);
 export function isTextEntry(target) {
   if (!target || typeof target.closest !== 'function') return false;
   if (target.closest('textarea,[contenteditable=""],[contenteditable=true]')) return true;
@@ -83,6 +83,7 @@ export class Keyboard {
     window.addEventListener('keyup', event => this.#key(event, false));
     // Released keys are never seen while the page lacks focus; release them so nothing sticks.
     window.addEventListener('blur', () => this.releaseAll());
+    window.addEventListener('focusin', event => { if (isTextEntry(event.target)) this.releaseAll(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.releaseAll(); });
   }
   get bindings() { return { ...this.#bindings }; }

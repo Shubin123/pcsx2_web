@@ -16,7 +16,8 @@
     "test:performance": "node tests/performance.mjs",
     "test:game-controls": "node tests/game-controls.mjs",
     "test:controls": "node tests/controls.mjs",
-    "test:input": "node tests/controls.mjs unit && node tests/controls.mjs contract"
+    "test:input": "node tests/controls.mjs unit && node tests/controls.mjs contract",
+    "test:speed": "node tests/speed-browser.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^23.11.1"
