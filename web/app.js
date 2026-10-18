@@ -15,6 +15,7 @@ let ready = false;
 let hasBios = false;
 let hasGame = false;
 let isRunning = false;
+let launching = false;
 let isPaused = false;
 let waitingForVideo = false;
 let fastForward = false;
@@ -60,21 +61,26 @@ async function refreshLibrary() {
   $('library-status').textContent = !games.length
     ? 'No saved games yet. Choose a game file or browse the shared library to cache one.'
     : !matches.length ? 'No saved games match your search.'
-    : `${matches.length} of ${games.length} saved games. Select a title to load it without downloading again.`;
+    : `${matches.length} of ${games.length} saved games. Play a saved title without downloading again.`;
   $('library').replaceChildren();
   for (const meta of matches) {
     const row = document.createElement('li');
     const load = document.createElement('button');
     load.textContent = `${meta.name} · ${(meta.size / 1048576).toFixed(1)} MiB`;
     load.setAttribute('aria-label', `Load ${meta.name} from browser storage`);
-    load.disabled = !ready || importing || downloading;
+    load.disabled = !ready || importing || downloading || launching || isRunning;
     load.onclick = () => loadFile(meta).catch(report);
+    const play = document.createElement('button');
+    play.textContent = 'Play';
+    play.setAttribute('aria-label', `Play ${meta.name} from browser storage`);
+    play.disabled = !ready || importing || downloading || launching;
+    play.onclick = () => loadAndRunGame(meta).catch(report);
     const remove = document.createElement('button');
     remove.textContent = 'Remove';
     remove.setAttribute('aria-label', `Remove ${meta.name} from browser storage`);
-    remove.disabled = importing || downloading;
+    remove.disabled = importing || downloading || launching;
     remove.onclick = async () => { try { await removeCachedFile(meta); await refreshLibrary(); } catch (error) { report(error); } };
-    row.append(load, remove); $('library').append(row);
+    row.append(load, play, remove); $('library').append(row);
   }
 }
 
@@ -107,7 +113,7 @@ async function mountFile(file, kind) {
 }
 
 async function importFile(file, kind) {
-  if (!file || !ready || importing || downloading) return;
+  if (!file || !ready || importing || downloading || launching || isRunning) return;
   if (!file.size) throw new Error('The selected file is empty.');
   const extension = file.name.split('.').pop().toLowerCase();
   if (kind === 'disc' && !['iso', 'bin', 'elf'].includes(extension)) throw new Error('Choose an ISO, BIN, or ELF. Compressed archives are not supported yet.');
@@ -143,14 +149,20 @@ async function importFile(file, kind) {
   }
 }
 
-async function loadAndRunGame() {
-  if (!hasGame || isRunning) return;
+async function loadAndRunGame(meta) {
+  if (launching || importing || downloading || !ready || (!meta && (!hasGame || isRunning))) return;
+  launching = true;
   $('btn-load-game').disabled = true;
   $('play').disabled = true;
   $('pause').disabled = true;
-  $('stop').disabled = false;
+  $('stop').disabled = true;
 
   try {
+    await refreshLibrary();
+    if (meta) {
+      if (isRunning) await stopGame();
+      await loadFile(meta);
+    }
     showLoadbar('Loading game…', 0.15, 'Verifying console BIOS and virtual disc…');
     await new Promise(r => setTimeout(r, 60));
 
@@ -194,6 +206,9 @@ async function loadAndRunGame() {
     $('pause').disabled = true;
     $('stop').disabled = true;
     report(err);
+  } finally {
+    launching = false;
+    await refreshLibrary();
   }
 }
 
@@ -224,6 +239,7 @@ async function stopGame() {
   $('stop').disabled = true;
   $('fps').textContent = 'No game running';
   status('Emulation stopped.');
+  await refreshLibrary();
 }
 
 function updateMetrics(metrics) {
@@ -387,7 +403,7 @@ async function initialize() {
     ? 'PCSX2 WebAssembly core is ready. Select a game to load & run.'
     : 'The graphics components are ready. PS2 game execution is still being ported.';
   status('Backend initialized. Ready to load PlayStation 2 games.');
-  startArchive(async meta => { await loadFile(meta); await refreshLibrary(); }, () => importing, async active => { downloading = active; await refreshLibrary(); });
+  startArchive(async meta => { await loadFile(meta); await refreshLibrary(); }, () => importing || launching || isRunning, async active => { downloading = active; await refreshLibrary(); });
   await refreshLibrary();
 
   // Load custom BIOS if saved, otherwise load baked-in European BIOS
