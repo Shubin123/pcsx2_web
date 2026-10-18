@@ -40,12 +40,16 @@ try {
   await page.click('[aria-label="Show Controller"]');
   await page.keyboard.press('Escape');
   assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), true);
+  assert.equal(await page.$eval('#threads', e => e.value), '0');
   await page.select('#filter', 'auto');
+  await page.select('#threads', '2');
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForFunction(() => !document.getElementById('validate').disabled);
   assert.equal(await page.$eval('#filter', e => e.value), 'auto');
+  assert.equal(await page.$eval('#threads', e => e.value), '2');
   assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), true);
   await page.click('#reset-settings');
+  assert.equal(await page.$eval('#threads', e => e.value), '0');
   assert.equal(await page.$eval('[data-widget="controls"]', e => e.hidden), false);
   await testWidgetSizing(page);
   await page.click('#validate');
