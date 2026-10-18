@@ -185,7 +185,7 @@ async function loadAndRunGame(meta) {
     showLoadbar('Booting PlayStation 2…', 0.88, 'Executing guest system startup sequence…');
     waitingForVideo = true;
     backend.send('bindings', { lines: keyboard.settingsLines() });
-    await backend.request('boot', { fastStart: true, mtvu: $('mtvu').checked });
+    await backend.request('boot', { fastStart: true, mtvu: $('mtvu').checked, extraThreads: Number($('threads')?.value ?? 2) });
     if (waitingForVideo) showLoadbar('Starting game…', 0.88, 'Waiting for the first visible game frame. Interpreter startup can take several minutes.');
 
     $('empty').hidden = true;

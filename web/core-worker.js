@@ -187,7 +187,8 @@ if (globalThis.name === 'em-pthread') {
       ['EmuCore/Speedhacks', 'IntcStat', 'true'],
       ['EmuCore/Speedhacks', 'WaitLoop', 'true'],
       ['EmuCore/Speedhacks', 'vu1Instant', 'true'],
-      ['EmuCore/GS', 'extrathreads', '0'],
+      ['EmuCore/Speedhacks', 'vuFlagHack', 'true'],
+      ['EmuCore/GS', 'extrathreads', String(data?.extraThreads ?? 2)],
       // VU1 on its own thread: ~1.7x in 3D gameplay, where VU1 microcode dominates.
       ['EmuCore/Speedhacks', 'vuThread', data?.mtvu === false ? 'false' : 'true']
     ].map(entry => entry.join('\t')).join('\n') + (pendingSettings ? `\n${pendingSettings}` : ''));
